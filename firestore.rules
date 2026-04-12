@@ -1,0 +1,115 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    // Campos alterados apenas pelo backend (Functions / webhook).
+    function touchesServerOnlyUserFields() {
+      return request.resource.data.diff(resource.data).changedKeys()
+        .hasAny([
+          'ratingAvg',
+          'ratingCount',
+          'semiAleatorio',
+          'shadowBanned',
+          'reportsCount',
+          'premiumUntil',
+          'asaasCustomerId',
+        ]);
+    }
+
+    match /users/{userId} {
+      allow read: if true;
+
+      allow create: if isOwner(userId)
+        && request.resource.data.uid == userId
+        && !request.resource.data.keys().hasAny([
+          'premiumUntil',
+          'asaasCustomerId',
+        ]);
+
+      allow update: if isOwner(userId) && !touchesServerOnlyUserFields();
+
+      allow delete: if isOwner(userId);
+    }
+
+    match /posts/{postId} {
+      allow read: if true;
+
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 200
+        && request.resource.data.description is string
+        && request.resource.data.description.size() <= 2000
+        && request.resource.data.eloMin is string
+        && request.resource.data.role is string
+        && request.resource.data.queueType in ['duo', 'flex', 'clash'];
+
+      allow update, delete: if signedIn()
+        && resource.data.uid == request.auth.uid;
+    }
+
+    // Mensagens: leitura apenas para fromUid/toUid. Query do app: OR + orderBy(createdAt).
+    match /messages/{msgId} {
+      allow read: if signedIn()
+        && (resource.data.fromUid == request.auth.uid
+            || resource.data.toUid == request.auth.uid);
+
+      allow create: if signedIn()
+        && request.resource.data.fromUid == request.auth.uid
+        && request.resource.data.toUid is string
+        && request.resource.data.toUid != request.auth.uid
+        && request.resource.data.threadId is string
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 4000;
+
+      allow update, delete: if false;
+    }
+
+    match /ratings/{ratingId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /reports/{reportId} {
+      allow create: if signedIn()
+        && request.resource.data.fromUid == request.auth.uid
+        && request.resource.data.toUid is string
+        && request.resource.data.toUid != request.auth.uid
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() > 0
+        && request.resource.data.reason.size() <= 64
+        && request.resource.data.detail is string
+        && request.resource.data.detail.size() <= 500;
+
+      allow read, update, delete: if false;
+    }
+
+    match /seed_profiles/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /config/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /webhook_events/{id} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
