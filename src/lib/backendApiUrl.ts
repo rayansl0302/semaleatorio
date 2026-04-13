@@ -54,6 +54,27 @@ export function getBackendApiBaseUrl(): string | undefined {
   return undefined
 }
 
+/** Path absoluto no host atual, ex. `/api/linkRiotProfile`. */
+export function resolveBackendApiRequestPath(routeName: string): string {
+  const name = routeName.replace(/^\//, '')
+  return `/api/${name}`
+}
+
+/**
+ * URL completa se `VITE_API_URL` estiver definido; senão path relativo `/api/...`
+ * (produção na Vercel: mesmo domínio; dev: proxy no `vite.config`).
+ */
+export function resolveBackendApiRequestUrl(routeName: string): string {
+  const base = getBackendApiBaseUrl()
+  const path = resolveBackendApiRequestPath(routeName)
+  if (!base) return path
+  return `${base.replace(/\/$/, '')}${path}`
+}
+
 export function backendApiBaseUrlConfigured(): boolean {
-  return Boolean(getBackendApiBaseUrl())
+  if (getBackendApiBaseUrl()) return true
+  // Build de produção: típico deploy Vercel com `api/` no mesmo projeto.
+  if (import.meta.env.PROD) return true
+  // Dev: `vercel dev` + proxy `/api` no Vite (ou define VITE_API_URL).
+  return import.meta.env.DEV
 }

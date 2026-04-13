@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { vercelApiCall, vercelApiConfigured } from '../firebase/api'
+import { vercelApiCall } from '../firebase/api'
 
 type Props = {
   open: boolean
@@ -17,7 +17,7 @@ export function RateUserModal({ open, onClose, target, fromUid }: Props) {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!target || !vercelApiConfigured() || target.uid === fromUid) return
+    if (!target || target.uid === fromUid) return
     setSending(true)
     setMsg(null)
     try {
@@ -31,7 +31,7 @@ export function RateUserModal({ open, onClose, target, fromUid }: Props) {
       setTimeout(onClose, 1200)
     } catch (e: unknown) {
       const err = e as { message?: string }
-      setMsg(err?.message ?? 'Confira VITE_API_URL / VITE_BACKEND_URL e o login.')
+      setMsg(err?.message ?? 'Confira a API (vercel dev / Vercel) e o login.')
     } finally {
       setSending(false)
     }
@@ -99,17 +99,12 @@ export function RateUserModal({ open, onClose, target, fromUid }: Props) {
           </button>
           <button
             type="submit"
-            disabled={sending || target.uid === fromUid || !vercelApiConfigured()}
+            disabled={sending || target.uid === fromUid}
             className="flex-1 rounded-lg bg-secondary py-2 text-sm font-semibold text-white disabled:opacity-40"
           >
             {sending ? 'Enviando…' : 'Enviar'}
           </button>
         </div>
-        {!vercelApiConfigured() && (
-          <p className="mt-2 text-xs text-amber-500">
-            API não configurada (VITE_API_URL ou VITE_BACKEND_URL no .env da raiz).
-          </p>
-        )}
       </form>
     </div>
   )

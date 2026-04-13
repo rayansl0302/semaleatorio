@@ -7,6 +7,7 @@ import {
   useNavigate,
 } from 'react-router-dom'
 import { BrandLogo } from './BrandLogo'
+import { RiotLegalNotice } from './RiotLegalNotice'
 import { useAuth } from '../contexts/AuthContext'
 import { useFcmRegistration } from '../hooks/useFcmRegistration'
 
@@ -106,8 +107,11 @@ export function Layout() {
       <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 py-6">
         <Outlet />
       </main>
-      <footer className="border-t border-border py-6 text-center text-xs text-slate-600">
-        SemAleatório — comunidade brasileira · não afiliado à Riot Games
+      <footer className="space-y-3 border-t border-border py-6 text-center text-xs text-slate-600">
+        <p>SemAleatório — comunidade brasileira</p>
+        <div className="mx-auto max-w-2xl px-4">
+          <RiotLegalNotice />
+        </div>
       </footer>
     </div>
   )

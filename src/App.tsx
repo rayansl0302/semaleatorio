@@ -8,8 +8,6 @@ import { LandingPage } from './pages/LandingPage'
 import { MessagesPage } from './pages/MessagesPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { PublicProfilePage } from './pages/PublicProfilePage'
-import { RiotCallbackPage } from './pages/RiotCallbackPage'
-
 export default function App() {
   return (
     <HelmetProvider>
@@ -23,7 +21,6 @@ export default function App() {
             <Route path="jogadores" element={<PlayersPage />} />
             <Route path="perfil" element={<ProfilePage />} />
             <Route path="mensagens" element={<MessagesPage />} />
-            <Route path="riot-callback" element={<RiotCallbackPage />} />
           </Route>
           <Route path="/perfil" element={<Navigate to="/app/perfil" replace />} />
           <Route path="/mensagens" element={<Navigate to="/app/mensagens" replace />} />

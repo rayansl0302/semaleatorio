@@ -4,7 +4,7 @@
  */
 import {
   backendApiBaseUrlConfigured,
-  getBackendApiBaseUrl,
+  resolveBackendApiRequestUrl,
 } from '../lib/backendApiUrl'
 import { auth } from './config'
 
@@ -18,17 +18,16 @@ export async function vercelApiCall<TResponse>(
   routeName: string,
   data: Record<string, unknown> = {},
 ): Promise<TResponse> {
-  const base = getBackendApiBaseUrl()
-  if (!base) {
+  if (!backendApiBaseUrlConfigured()) {
     throw new Error(
-      'Defina VITE_API_URL ou VITE_BACKEND_URL no .env (raiz) — URL do servidor Node, sem barra no fim. Ex.: http://localhost:8787. Opcional: VITE_VERCEL_API_URL (só API Vercel).',
+      'Defina VITE_API_URL ou VITE_BACKEND_URL no .env (raiz) — URL com as rotas /api, sem barra no fim. Em dev podes usar proxy: corre `npx vercel dev` e deixa VITE_API_URL vazio.',
     )
   }
   if (!auth?.currentUser) {
     throw new Error('Faça login.')
   }
   const token = await auth.currentUser.getIdToken()
-  const url = `${base}/api/${routeName}`
+  const url = resolveBackendApiRequestUrl(routeName)
   const res = await fetch(url, {
     method: 'POST',
     headers: {

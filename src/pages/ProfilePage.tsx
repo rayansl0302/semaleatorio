@@ -17,11 +17,13 @@ import type { PlayerStatus, QueueType, UserProfile } from '../types/models'
 
 export function ProfilePage() {
   const { user, profile, loading, refreshProfile, updateLocalProfile } = useAuth()
-  const [params, setParams] = useSearchParams()
+  const [params] = useSearchParams()
   const viewUid = params.get('u')
   const [viewProfile, setViewProfile] = useState<UserProfile | null>(null)
   const [rateOpen, setRateOpen] = useState(false)
-  const [riotOAuthLoading, setRiotOAuthLoading] = useState(false)
+  const [riotNick, setRiotNick] = useState('')
+  const [riotTag, setRiotTag] = useState('')
+  const [linkRiotLoading, setLinkRiotLoading] = useState(false)
   const [riotMsg, setRiotMsg] = useState<string | null>(null)
   const [payLoading, setPayLoading] = useState<string | null>(null)
   const [payMsg, setPayMsg] = useState<string | null>(null)
@@ -50,24 +52,10 @@ export function ProfilePage() {
   }, [viewUid, user?.uid])
 
   useEffect(() => {
-    const riot = params.get('riot')
-    if (!riot) return
-    if (riot === 'ok') {
-      setRiotMsg('Conta Riot conectada com sucesso.')
-      void refreshProfile()
-    } else if (riot === 'err') {
-      const detail = params.get('detail')
-      setRiotMsg(
-        detail
-          ? decodeURIComponent(detail.replace(/\+/g, ' '))
-          : 'Não foi possível conectar à Riot.',
-      )
-    }
-    const next = new URLSearchParams(params)
-    next.delete('riot')
-    next.delete('detail')
-    setParams(next, { replace: true })
-  }, [params, setParams, refreshProfile])
+    if (!profile) return
+    setRiotNick(profile.nickname ?? '')
+    setRiotTag(profile.tag ?? '')
+  }, [profile?.uid, profile?.nickname, profile?.tag])
 
   const seal = display && (hasSemiAleatorioSeal(display) || display.semiAleatorio)
 
@@ -125,31 +113,30 @@ export function ProfilePage() {
     await persistProfile(user.uid, { [key]: value } as Record<string, unknown>)
   }
 
-  async function startRiotOAuth() {
+  async function confirmRiotId() {
     if (!user) {
-      setRiotMsg('Inicia sessão para ligar a conta Riot.')
+      setRiotMsg('Inicia sessão para ligar o Riot ID.')
       return
     }
-    if (!vercelApiConfigured()) {
-      setRiotMsg(
-        'API não configurada: no .env da raiz define VITE_API_URL (URL do deploy na Vercel, ex.: https://teu-app.vercel.app). Reinicia o Vite.',
-      )
+    const gn = riotNick.trim()
+    const tag = riotTag.trim().replace(/^#/, '')
+    if (!gn || !tag) {
+      setRiotMsg('Preenche o nome de invocador e a tag (ex.: BR1).')
       return
     }
-    setRiotOAuthLoading(true)
+    setLinkRiotLoading(true)
     setRiotMsg(null)
     try {
-      const data = await vercelApiCall<{ url?: string }>('prepareRiotOAuth', {})
-      const url = data?.url?.trim()
-      if (!url) {
-        setRiotMsg('Resposta inválida do servidor (sem URL de login).')
-        return
-      }
-      window.location.assign(url)
+      await vercelApiCall('linkRiotProfile', {
+        gameName: gn,
+        tagLine: tag,
+      })
+      await refreshProfile()
+      setRiotMsg('Riot ID confirmado — nick, tag, PUUID e elo atualizados.')
     } catch (e) {
       setRiotMsg(formatApiBackendError(e))
     } finally {
-      setRiotOAuthLoading(false)
+      setLinkRiotLoading(false)
     }
   }
 
@@ -405,31 +392,52 @@ export function ProfilePage() {
             </h2>
             <p className="text-sm text-slate-400">
               {profile?.riotPuuid
-                ? `Conectado: ${profile.nickname ?? '?'}#${profile.tag ?? '?'}`
-                : 'Ainda não ligou a conta Riot ao perfil.'}
+                ? `Confirmado na API: ${profile.nickname ?? '?'}#${profile.tag ?? '?'}`
+                : 'Indica o teu Riot ID e confirma — o servidor consulta a Riot e grava PUUID e elo.'}
             </p>
-            {!vercelApiConfigured() ? (
-              <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-                Para o login Riot funcionar, adiciona no <code className="text-[0.65rem]">.env</code>{' '}
-                da raiz:{' '}
-                <code className="text-[0.65rem]">VITE_API_URL=http://localhost:8787</code> (ou{' '}
-                <code className="text-[0.65rem]">VITE_BACKEND_URL</code>){' '}
-                (ex.: <code className="text-[0.65rem]">https://teu-projeto.vercel.app</code>) sem
-                barra no fim. Reinicia o servidor de desenvolvimento depois de guardar.
+            <p className="text-xs leading-relaxed text-slate-500">
+              Só precisas da <code className="text-[0.65rem]">RIOT_API_KEY</code> no backend (Vercel
+              ou <code className="text-[0.65rem]">vercel dev</code>). Sem OAuth, sem redirect no
+              portal da Riot.
+            </p>
+            {import.meta.env.DEV ? (
+              <p className="rounded-lg border border-border bg-white/5 px-3 py-2 text-xs text-slate-400">
+                Dev: <code className="text-[0.65rem]">npm run dev:all</code> — Vite faz proxy de{' '}
+                <code className="text-[0.65rem]">/api</code> para a porta do{' '}
+                <code className="text-[0.65rem]">vercel dev</code> (padrão 3000). Define{' '}
+                <code className="text-[0.65rem]">FIREBASE_SERVICE_ACCOUNT_JSON</code> e{' '}
+                <code className="text-[0.65rem]">RIOT_API_KEY</code> no <code className="text-[0.65rem]">.env</code>.
               </p>
             ) : null}
+            <div className="flex max-w-md flex-col gap-3 sm:flex-row sm:items-end">
+              <label className="block flex-1 text-xs text-slate-500">
+                Nome de invocador
+                <input
+                  value={riotNick}
+                  onChange={(e) => setRiotNick(e.target.value)}
+                  autoComplete="off"
+                  className="mt-1 w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-white"
+                />
+              </label>
+              <label className="block w-full text-xs text-slate-500 sm:w-28">
+                Tag
+                <input
+                  value={riotTag}
+                  onChange={(e) => setRiotTag(e.target.value)}
+                  autoComplete="off"
+                  placeholder="BR1"
+                  className="mt-1 w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-white"
+                />
+              </label>
+            </div>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                disabled={riotOAuthLoading}
-                onClick={() => void startRiotOAuth()}
+                disabled={linkRiotLoading}
+                onClick={() => void confirmRiotId()}
                 className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-black disabled:opacity-50"
               >
-                {riotOAuthLoading
-                  ? 'Abrindo…'
-                  : profile?.riotPuuid
-                    ? 'Voltar a conectar com a Riot'
-                    : 'Conectar com a Riot (login oficial)'}
+                {linkRiotLoading ? 'A confirmar…' : 'Confirmar Riot ID'}
               </button>
             </div>
             {riotMsg ? (
@@ -438,10 +446,8 @@ export function ProfilePage() {
               </p>
             ) : null}
             <p className="text-xs text-slate-600">
-              Ao clicar, o site redireciona para{' '}
-              <code className="text-slate-500">auth.riotgames.com</code>. Depois de
-              autorizar, voltas ao SemAleatório com nick, tag, PUUID e elo vindos da
-              Riot (sem pop-up bloqueado pelo browser).
+              O nick e a tag têm de coincidir com a conta na região configurada (
+              <code className="text-slate-500">RIOT_PLATFORM_ROUTING</code>, ex. br1).
             </p>
           </div>
         )}
@@ -624,9 +630,8 @@ export function ProfilePage() {
                 </>
               ) : (
                 <p className="mt-2 text-xs leading-relaxed text-slate-500">
-                  Preencha e salve nick e tag na seção Riot acima para gerar o endereço
-                  público em <span className="font-mono text-slate-400">/u/seu-nick</span>
-                  .
+                  Confirma o teu Riot ID na secção acima para gerar o endereço público em{' '}
+                  <span className="font-mono text-slate-400">/u/seu-nick</span>.
                 </p>
               )}
             </div>

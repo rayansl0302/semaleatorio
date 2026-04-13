@@ -9,7 +9,11 @@ export function formatApiBackendError(e: unknown): string {
       return e.message
     }
     if (e.message.includes('Failed to fetch')) {
-      return 'Não foi possível contactar a API. Confira VITE_API_URL (URL do teu site na Vercel, ex.: https://xxx.vercel.app), CORS e as variáveis na Vercel.'
+      return (
+        'Não foi possível contactar a API. ' +
+        'Em desenvolvimento: inicia `npx vercel dev` (porta 3000 por omissão), remove ou comenta `VITE_API_URL` no .env para o Vite encaminhar `/api` para o proxy, ou define `VITE_API_URL=http://127.0.0.1:3000`. ' +
+        'Na Vercel (produção): o front pode usar `/api` na mesma origem sem `VITE_API_URL`; se o SPA estiver noutro domínio, define `VITE_API_URL` com o URL do projeto que tem as serverless functions. Confere também CORS e variáveis de ambiente do servidor.'
+      )
     }
     return e.message
   }

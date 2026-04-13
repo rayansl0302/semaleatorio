@@ -2,6 +2,7 @@ import { Helmet } from 'react-helmet-async'
 import { useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { BrandLogo } from '../components/BrandLogo'
+import { RiotLegalNotice } from '../components/RiotLegalNotice'
 import { useAuth } from '../contexts/AuthContext'
 import { getPublicSiteUrl } from '../lib/siteUrl'
 
@@ -326,8 +327,11 @@ export function LandingPage() {
           </section>
         </main>
 
-        <footer className="relative z-10 border-t border-border py-8 text-center text-xs text-slate-600">
-          SemAleatório — comunidade BR · não afiliado à Riot Games
+        <footer className="relative z-10 space-y-4 border-t border-border py-8 text-center text-xs text-slate-600">
+          <p>SemAleatório — comunidade BR</p>
+          <div className="mx-auto max-w-2xl px-4">
+            <RiotLegalNotice />
+          </div>
         </footer>
       </div>
     </>

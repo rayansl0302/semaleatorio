@@ -4,7 +4,6 @@ import { config as loadEnv } from 'dotenv'
 import * as admin from 'firebase-admin'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { FetchRankError, fetchRankByRiotId } from './riotRank.js'
-import { riotCompleteOAuth, riotPrepareOAuth } from './riotOAuth.js'
 
 /** Gen2: preflight CORS do browser exige invoker público; auth continua via token no corpo. */
 const callableOpts = {
@@ -30,36 +29,6 @@ loadEnvFromDotenv()
 
 admin.initializeApp()
 const db = admin.firestore()
-
-/** Inicia OAuth RSO: devolve URL para abrir em nova aba (state guardado no Firestore). */
-export const prepareRiotOAuth = onCall(callableOpts, async (request) => {
-  if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'Faça login.')
-  }
-  try {
-    return await riotPrepareOAuth(request.auth.uid)
-  } catch (e) {
-    if (e instanceof HttpsError) throw e
-    console.error('[prepareRiotOAuth]', e)
-    throw new HttpsError('internal', 'Erro ao preparar login Riot.')
-  }
-})
-
-/** Troca code+state por dados da conta e atualiza o perfil no Firestore. */
-export const completeRiotOAuth = onCall(callableOpts, async (request) => {
-  if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'Faça login.')
-  }
-  const code = String(request.data?.code ?? '')
-  const state = String(request.data?.state ?? '')
-  try {
-    return await riotCompleteOAuth(request.auth.uid, code, state)
-  } catch (e) {
-    if (e instanceof HttpsError) throw e
-    console.error('[completeRiotOAuth]', e)
-    throw new HttpsError('internal', 'Erro ao concluir login Riot.')
-  }
-})
 
 export const fetchRiotRank = onCall(callableOpts, async (request) => {
   if (!request.auth) {

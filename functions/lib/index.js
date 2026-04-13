@@ -33,14 +33,13 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createAsaasCheckout = exports.asaasWebhook = exports.submitRating = exports.fetchRiotRank = exports.completeRiotOAuth = exports.prepareRiotOAuth = void 0;
+exports.createAsaasCheckout = exports.asaasWebhook = exports.submitRating = exports.fetchRiotRank = void 0;
 const node_fs_1 = require("node:fs");
 const node_path_1 = require("node:path");
 const dotenv_1 = require("dotenv");
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
 const riotRank_js_1 = require("./riotRank.js");
-const riotOAuth_js_1 = require("./riotOAuth.js");
 /** Gen2: preflight CORS do browser exige invoker público; auth continua via token no corpo. */
 const callableOpts = {
     region: 'us-central1',
@@ -62,38 +61,6 @@ function loadEnvFromDotenv() {
 loadEnvFromDotenv();
 admin.initializeApp();
 const db = admin.firestore();
-/** Inicia OAuth RSO: devolve URL para abrir em nova aba (state guardado no Firestore). */
-exports.prepareRiotOAuth = (0, https_1.onCall)(callableOpts, async (request) => {
-    if (!request.auth) {
-        throw new https_1.HttpsError('unauthenticated', 'Faça login.');
-    }
-    try {
-        return await (0, riotOAuth_js_1.riotPrepareOAuth)(request.auth.uid);
-    }
-    catch (e) {
-        if (e instanceof https_1.HttpsError)
-            throw e;
-        console.error('[prepareRiotOAuth]', e);
-        throw new https_1.HttpsError('internal', 'Erro ao preparar login Riot.');
-    }
-});
-/** Troca code+state por dados da conta e atualiza o perfil no Firestore. */
-exports.completeRiotOAuth = (0, https_1.onCall)(callableOpts, async (request) => {
-    if (!request.auth) {
-        throw new https_1.HttpsError('unauthenticated', 'Faça login.');
-    }
-    const code = String(request.data?.code ?? '');
-    const state = String(request.data?.state ?? '');
-    try {
-        return await (0, riotOAuth_js_1.riotCompleteOAuth)(request.auth.uid, code, state);
-    }
-    catch (e) {
-        if (e instanceof https_1.HttpsError)
-            throw e;
-        console.error('[completeRiotOAuth]', e);
-        throw new https_1.HttpsError('internal', 'Erro ao concluir login Riot.');
-    }
-});
 exports.fetchRiotRank = (0, https_1.onCall)(callableOpts, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Faça login.');
