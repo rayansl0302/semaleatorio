@@ -155,8 +155,7 @@ export function AuthPage() {
               </p>
               <p className="text-center text-amber-200/90">
                 No ficheiro <code className="rounded bg-black/30 px-1 text-xs">.env</code> na{' '}
-                <strong className="text-amber-100">raiz do projeto</strong> (não em{' '}
-                <code className="text-xs">backend/</code>), define as variáveis com prefixo{' '}
+                <strong className="text-amber-100">raiz do projeto</strong>, define as variáveis com prefixo{' '}
                 <code className="text-xs">VITE_</code> — copia da Consola Firebase → Definições do
                 projeto → A tua aplicação → SDK de configuração (não uses o JSON da service account
                 aqui).
@@ -174,9 +173,8 @@ export function AuthPage() {
                 </div>
               ) : null}
               <p className="text-center text-xs text-amber-200/70">
-                Depois de guardar o <code className="text-[0.65rem]">.env</code>, reinicia o Vite
-                (para o <code className="text-[0.65rem]">npm run dev</code> ou{' '}
-                <code className="text-[0.65rem]">npm run dev:all</code>).
+                Depois de guardar o <code className="text-[0.65rem]">.env</code>, reinicia o{' '}
+                <code className="text-[0.65rem]">npm run dev</code>.
               </p>
             </div>
           ) : (

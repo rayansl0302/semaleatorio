@@ -1,3 +1,0 @@
-# Servidor Express — não faz parte do deploy Vercel (front + /api serverless).
-# Para produção Node: deploy da pasta backend noutro serviço (ex.: Railway, Root Directory = backend).
-backend/

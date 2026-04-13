@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  /** URL base do backend SemAleatório (recomendado). Ex.: http://localhost:8787 */
+  /** URL base onde existem as rotas /api/* (ex.: https://teu-app.vercel.app) */
   readonly VITE_API_URL?: string
   /** Alias de VITE_API_URL */
   readonly VITE_BACKEND_URL?: string

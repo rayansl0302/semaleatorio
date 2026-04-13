@@ -1,0 +1,14 @@
+# Variáveis para colar na Vercel → Project → Settings → Environment Variables
+# (Não vão para o .env do Vite / repositório.)
+
+FIREBASE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
+
+RIOT_API_KEY=
+RIOT_PLATFORM_ROUTING=br1
+RIOT_OAUTH_CLIENT_ID=
+RIOT_OAUTH_CLIENT_SECRET=
+RIOT_OAUTH_REDIRECT_URI=https://teu-dominio.vercel.app/app/riot-callback
+
+ASAAS_API_KEY=
+ASAAS_API_BASE=https://api-sandbox.asaas.com/v3
+ASAAS_WEBHOOK_TOKEN=

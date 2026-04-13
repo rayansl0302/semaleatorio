@@ -132,7 +132,7 @@ export function ProfilePage() {
     }
     if (!vercelApiConfigured()) {
       setRiotMsg(
-        'Backend não configurado: no .env da raiz define VITE_API_URL ou VITE_BACKEND_URL (ex.: http://localhost:8787). Reinicia o Vite.',
+        'API não configurada: no .env da raiz define VITE_API_URL (URL do deploy na Vercel, ex.: https://teu-app.vercel.app). Reinicia o Vite.',
       )
       return
     }
@@ -414,7 +414,7 @@ export function ProfilePage() {
                 da raiz:{' '}
                 <code className="text-[0.65rem]">VITE_API_URL=http://localhost:8787</code> (ou{' '}
                 <code className="text-[0.65rem]">VITE_BACKEND_URL</code>){' '}
-                (com <code className="text-[0.65rem]">npm run dev:all</code>) ou a URL do teu deploy, sem
+                (ex.: <code className="text-[0.65rem]">https://teu-projeto.vercel.app</code>) sem
                 barra no fim. Reinicia o servidor de desenvolvimento depois de guardar.
               </p>
             ) : null}

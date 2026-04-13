@@ -1,7 +1,7 @@
-import { requireUid } from './lib/auth.js'
-import { getAdmin, getDb } from './lib/admin.js'
-import { ApiError } from './lib/errors.js'
-import { postHandler } from './lib/handler.js'
+import { requireUid } from '../vercel-api/lib/auth.js'
+import { getAdmin, getDb } from '../vercel-api/lib/admin.js'
+import { ApiError } from '../vercel-api/lib/errors.js'
+import { postHandler } from '../vercel-api/lib/handler.js'
 
 export default postHandler(async (req, data) => {
   const admin = getAdmin()

@@ -1,7 +1,7 @@
-import { requireUid } from './lib/auth.js'
-import { getAdmin } from './lib/admin.js'
-import { postHandler } from './lib/handler.js'
-import { riotCompleteOAuth } from './lib/riotOAuth.js'
+import { requireUid } from '../vercel-api/lib/auth.js'
+import { getAdmin } from '../vercel-api/lib/admin.js'
+import { postHandler } from '../vercel-api/lib/handler.js'
+import { riotCompleteOAuth } from '../vercel-api/lib/riotOAuth.js'
 
 export default postHandler(async (req, data) => {
   getAdmin()

@@ -1,8 +1,8 @@
-import { requireUid } from './lib/auth.js'
-import { getAdmin } from './lib/admin.js'
-import { ApiError } from './lib/errors.js'
-import { postHandler } from './lib/handler.js'
-import { FetchRankError, fetchRankByRiotId } from './lib/riotRank.js'
+import { requireUid } from '../vercel-api/lib/auth.js'
+import { getAdmin } from '../vercel-api/lib/admin.js'
+import { ApiError } from '../vercel-api/lib/errors.js'
+import { postHandler } from '../vercel-api/lib/handler.js'
+import { FetchRankError, fetchRankByRiotId } from '../vercel-api/lib/riotRank.js'
 
 export default postHandler(async (req, data) => {
   getAdmin()

@@ -9,7 +9,7 @@ export function formatApiBackendError(e: unknown): string {
       return e.message
     }
     if (e.message.includes('Failed to fetch')) {
-      return 'Não foi possível contactar a API. Confira VITE_API_URL ou VITE_BACKEND_URL (origem do backend, ex.: http://localhost:8787), CORS e se o servidor está a correr (npm run dev:all).'
+      return 'Não foi possível contactar a API. Confira VITE_API_URL (URL do teu site na Vercel, ex.: https://xxx.vercel.app), CORS e as variáveis na Vercel.'
     }
     return e.message
   }

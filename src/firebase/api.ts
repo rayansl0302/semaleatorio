@@ -11,7 +11,7 @@ import { auth } from './config'
 type ApiResponse<T> = { result?: T; error?: { message?: string; code?: string } }
 
 /**
- * Chama rotas `POST /api/*` no backend (Railway, Vercel, etc.).
+ * Chama rotas `POST /api/*` na Vercel (ou outro host onde as serverless functions estão).
  * Corpo: `{ data: payload }` · auth: `Authorization: Bearer <idToken>`.
  */
 export async function vercelApiCall<TResponse>(
