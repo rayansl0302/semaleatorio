@@ -1,12 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { ChatMessagesPane, ChatThreadHeader } from './ChatMessagesPane'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 import { db } from '../firebase/config'
 import { useMessageThreads } from '../hooks/useMessageThreads'
 import { usePlayers } from '../hooks/usePlayers'
-import { extractLikelyFirebaseUid, threadIdFor } from '../lib/messages'
+import {
+  extractLikelyFirebaseUid,
+  normalizePeerUid,
+  threadIdFor,
+} from '../lib/messages'
 import { MESSAGE_DOCK_OPEN_EVENT } from '../lib/messageDock'
 import { pushMessageFs, subscribeThreadMessagesFs } from '../lib/firestoreMessages'
+import { useFirestoreUserProfile } from '../hooks/useFirestoreUserProfile'
 import type { MessageDoc, UserProfile } from '../types/models'
 
 function formatDockTime(createdAt: MessageDoc['createdAt']): string {
@@ -32,83 +39,110 @@ type DockChatProps = {
 }
 
 function DockChatPanel({ myUid, peerUid, peerLabel, onBack }: DockChatProps) {
+  const toast = useToast()
+  const { user, profile: myProfile } = useAuth()
   const [messages, setMessages] = useState<MessageDoc[]>([])
   const [text, setText] = useState('')
+  const [listenError, setListenError] = useState<string | null>(null)
 
-  const tid = useMemo(() => threadIdFor(myUid, peerUid), [myUid, peerUid])
+  const peerNorm = useMemo(() => normalizePeerUid(peerUid), [peerUid])
+  const tid = useMemo(() => threadIdFor(myUid, peerNorm), [myUid, peerNorm])
+  const peerProfile = useFirestoreUserProfile(peerNorm)
+
+  const viewerLabel = useMemo(() => {
+    if (myProfile?.nickname) return `${myProfile.nickname}#${myProfile.tag}`
+    return user?.displayName?.trim() || 'Eu'
+  }, [myProfile, user?.displayName])
 
   useEffect(() => {
     if (!db || !tid) {
       setMessages([])
+      setListenError(null)
       return
     }
-    return subscribeThreadMessagesFs(db, tid, setMessages)
-  }, [tid])
+    setListenError(null)
+    return subscribeThreadMessagesFs(db, tid, myUid, setMessages, (err) => {
+      setListenError(err.code)
+      console.error('[DockChat]', err)
+    })
+  }, [tid, myUid])
 
   async function send(e: React.FormEvent) {
     e.preventDefault()
     if (!db || !text.trim()) return
-    await pushMessageFs(db, {
-      threadId: tid,
-      fromUid: myUid,
-      toUid: peerUid,
-      text: text.trim(),
-    })
-    setText('')
+    try {
+      await pushMessageFs(db, {
+        threadId: tid,
+        fromUid: myUid,
+        toUid: peerNorm,
+        text: text.trim(),
+      })
+      setText('')
+    } catch (err: unknown) {
+      const code =
+        err && typeof err === 'object' && 'code' in err
+          ? String((err as { code: string }).code)
+          : 'erro'
+      toast.error(`Não foi possível enviar (${code}).`)
+    }
   }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2">
-        <button
-          type="button"
-          onClick={onBack}
-          className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white"
-          aria-label="Voltar às conversas"
-        >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-white">{peerLabel}</p>
+      <ChatThreadHeader
+        peerUid={peerNorm}
+        peerProfile={peerProfile}
+        peerLabelShort={peerLabel}
+        leadingSlot={
+          <button
+            type="button"
+            onClick={onBack}
+            className="-ml-0.5 flex shrink-0 items-center rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white"
+            aria-label="Voltar às conversas"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+        }
+        compactLink={
           <Link
-            to={`/app/mensagens?com=${encodeURIComponent(peerUid)}`}
-            className="text-[11px] text-primary hover:underline"
+            to={`/app/mensagens?com=${encodeURIComponent(peerNorm)}`}
+            className="mt-0.5 inline-block text-[11px] text-primary hover:underline"
           >
             Abrir em tela cheia
           </Link>
-        </div>
-      </div>
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-2">
-        {messages.map((m) => {
-          const mine = m.fromUid === myUid
-          return (
-            <div
-              key={m.id}
-              className={`max-w-[88%] rounded-2xl px-3 py-2 text-xs leading-snug shadow-sm ${
-                mine
-                  ? 'ml-auto rounded-br-md bg-primary text-black'
-                  : 'mr-auto rounded-bl-md bg-white/[0.08] text-slate-100 ring-1 ring-white/10'
-              }`}
-            >
-              {m.text}
-            </div>
-          )
-        })}
-      </div>
-      <form onSubmit={send} className="shrink-0 border-t border-border p-2">
+        }
+      />
+      <ChatMessagesPane
+        messages={messages}
+        viewerUid={myUid}
+        viewerPhotoUrl={user?.photoURL}
+        viewerLabel={viewerLabel}
+        peerUid={peerNorm}
+        peerProfile={peerProfile}
+        peerLabelShort={peerLabel}
+      />
+      {listenError && (
+        <p className="shrink-0 border-t border-amber-500/30 bg-amber-500/15 px-2 py-1.5 text-[10px] text-amber-100">
+          Erro: {listenError}
+        </p>
+      )}
+      <form
+        onSubmit={(e) => void send(e)}
+        className="shrink-0 border-t border-border bg-[#1a232e] p-2"
+      >
         <div className="flex gap-1.5">
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Mensagem…"
-            className="min-w-0 flex-1 rounded-lg border border-border bg-bg px-2.5 py-1.5 text-xs text-white placeholder:text-slate-600"
+            placeholder="Mensagem"
+            className="min-w-0 flex-1 rounded-full border border-border/80 bg-[#2a3942] px-3 py-2 text-xs text-white placeholder:text-slate-600"
           />
           <button
             type="submit"
             disabled={!text.trim()}
-            className="shrink-0 rounded-lg bg-primary px-2.5 py-1.5 text-xs font-bold text-black disabled:opacity-40"
+            className="shrink-0 rounded-full bg-primary px-3 py-2 text-xs font-bold text-black disabled:opacity-40"
           >
             Enviar
           </button>
@@ -132,7 +166,7 @@ export function PlayersMessagesDock() {
     const onOpen = (e: Event) => {
       const uid = (e as CustomEvent<{ peerUid?: string }>).detail?.peerUid
       if (!uid || uid === user.uid) return
-      setSelectedPeer(uid)
+      setSelectedPeer(normalizePeerUid(uid))
       setExpanded(true)
     }
     window.addEventListener(MESSAGE_DOCK_OPEN_EVENT, onOpen)
@@ -215,9 +249,9 @@ export function PlayersMessagesDock() {
                     setDockPasteHint(null)
                     try {
                       const raw = await navigator.clipboard.readText()
-                      const uid = extractLikelyFirebaseUid(raw)
-                      if (uid && uid !== user.uid) {
-                        setSelectedPeer(uid)
+      const uid = extractLikelyFirebaseUid(raw)
+      if (uid && uid !== user.uid) {
+        setSelectedPeer(normalizePeerUid(uid))
                         setDockPasteHint('Conversa aberta.')
                       } else {
                         setDockPasteHint(

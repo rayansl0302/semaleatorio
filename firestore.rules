@@ -10,7 +10,12 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == userId;
     }
 
-    // Campos que o cliente não pode alterar (moderation / legado; médias vêm da coleção ratings).
+    /** Igual a [u1,u2].sort().join('_') no cliente (threadIdFor). */
+    function messageThreadIdFor(u1, u2) {
+      return u1 <= u2 ? u1 + '_' + u2 : u2 + '_' + u1;
+    }
+
+    // Campos alterados apenas pelo backend (Functions / webhook).
     function touchesServerOnlyUserFields() {
       return request.resource.data.diff(resource.data).changedKeys()
         .hasAny([
@@ -19,6 +24,7 @@ service cloud.firestore {
           'semiAleatorio',
           'shadowBanned',
           'reportsCount',
+          'premiumUntil',
           'asaasCustomerId',
         ]);
     }
@@ -28,7 +34,10 @@ service cloud.firestore {
 
       allow create: if isOwner(userId)
         && request.resource.data.uid == userId
-        && !request.resource.data.keys().hasAny(['asaasCustomerId']);
+        && !request.resource.data.keys().hasAny([
+          'premiumUntil',
+          'asaasCustomerId',
+        ]);
 
       allow update: if isOwner(userId) && !touchesServerOnlyUserFields();
 
@@ -66,7 +75,8 @@ service cloud.firestore {
         && resource.data.uid == request.auth.uid;
     }
 
-    // Mensagens: leitura apenas para fromUid/toUid. Query do app: OR + orderBy(createdAt).
+    // Mensagens: leitura só para remetente/destinatário.
+    // create: não use createdAt == request.time com serverTimestamp() no cliente (falha e bloqueia escrita).
     match /messages/{msgId} {
       allow read: if signedIn()
         && (resource.data.fromUid == request.auth.uid
@@ -77,16 +87,22 @@ service cloud.firestore {
         && request.resource.data.toUid is string
         && request.resource.data.toUid != request.auth.uid
         && request.resource.data.threadId is string
+        && request.resource.data.threadId
+          == messageThreadIdFor(
+            request.resource.data.fromUid,
+            request.resource.data.toUid
+          )
         && request.resource.data.text is string
         && request.resource.data.text.size() > 0
         && request.resource.data.text.size() <= 4000
-        && request.resource.data.createdAt == request.time;
+        && request.resource.data.keys().hasOnly(['threadId', 'fromUid', 'toUid', 'text', 'createdAt']);
 
       allow update, delete: if false;
     }
 
+    // Leitura só com login. Create detalhado (o app grava avaliações pelo cliente).
     match /ratings/{ratingId} {
-      allow read: if true;
+      allow read: if signedIn();
 
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly([
