@@ -52,7 +52,7 @@ const COMO = [
 ] as const
 
 export function LandingPage() {
-  const { user, firebaseConfigured } = useAuth()
+  const { user } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -108,20 +108,12 @@ export function LandingPage() {
                 loading="eager"
               />
             </Link>
-            <div className="flex items-center gap-3">
-              <Link
-                to="/app/jogadores"
-                className="text-sm font-medium text-slate-400 transition hover:text-white"
-              >
-                Ver mural
-              </Link>
-              <Link
-                to="/entrar?redirect=/app"
-                className="rounded-lg bg-primary/15 px-3 py-1.5 text-sm font-semibold text-primary ring-1 ring-primary/30 hover:bg-primary/25"
-              >
-                Entrar
-              </Link>
-            </div>
+            <Link
+              to="/entrar?redirect=/app"
+              className="rounded-lg bg-primary/15 px-3 py-1.5 text-sm font-semibold text-primary ring-1 ring-primary/30 hover:bg-primary/25"
+            >
+              Entrar
+            </Link>
           </div>
         </header>
 
@@ -177,13 +169,6 @@ export function LandingPage() {
                 Só ver quem tá LFG
               </Link>
             </div>
-
-            {!firebaseConfigured && (
-              <p className="mx-auto mt-6 max-w-xl text-center text-sm text-amber-400">
-                Configure o Firebase no <code className="rounded bg-amber-950/50 px-1">.env</code>{' '}
-                para login com e-mail ou Google.
-              </p>
-            )}
 
             <p className="mx-auto mt-8 max-w-lg text-center text-xs leading-relaxed text-slate-600">
               Grátis para usar o que importa: aparecer, filtrar, postar LFG e copiar
@@ -329,6 +314,17 @@ export function LandingPage() {
 
         <footer className="relative z-10 space-y-4 border-t border-border py-8 text-center text-xs text-slate-600">
           <p>SemAleatório — comunidade BR</p>
+          <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-slate-500">
+            <Link to="/privacidade" className="hover:text-primary hover:underline">
+              Política de Privacidade
+            </Link>
+            <span aria-hidden className="text-slate-700">
+              ·
+            </span>
+            <Link to="/termos" className="hover:text-primary hover:underline">
+              Termos de Serviço
+            </Link>
+          </nav>
           <div className="mx-auto max-w-2xl px-4">
             <RiotLegalNotice />
           </div>

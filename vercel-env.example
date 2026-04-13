@@ -6,6 +6,9 @@ FIREBASE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
 RIOT_API_KEY=
 RIOT_PLATFORM_ROUTING=br1
 
+# RSO no browser: segredos em VITE_RIOT_RSO_* no build (ver .env.example).
+# Proxy CORS sem Firebase (opcional em prod): deploy inclui /api/riotRsoBrowserProxy
+
 ASAAS_API_KEY=
 ASAAS_API_BASE=https://api-sandbox.asaas.com/v3
 ASAAS_WEBHOOK_TOKEN=

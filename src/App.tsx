@@ -5,9 +5,13 @@ import { AuthPage } from './pages/AuthPage'
 import { FeedHomePage } from './pages/FeedHomePage'
 import { PlayersPage } from './pages/PlayersPage'
 import { LandingPage } from './pages/LandingPage'
+import { LegalPrivacyPage } from './pages/LegalPrivacyPage'
+import { LegalTermsPage } from './pages/LegalTermsPage'
 import { MessagesPage } from './pages/MessagesPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { PublicProfilePage } from './pages/PublicProfilePage'
+import { PrivacyPolicyPage } from './pages/PrivacyPolicyPage'
+import { TermsOfServicePage } from './pages/TermsOfServicePage'
 export default function App() {
   return (
     <HelmetProvider>
@@ -15,7 +19,11 @@ export default function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/entrar" element={<AuthPage />} />
+          <Route path="/privacidade" element={<LegalPrivacyPage />} />
+          <Route path="/termos" element={<LegalTermsPage />} />
           <Route path="/u/:slug" element={<PublicProfilePage />} />
+          <Route path="/privacidade" element={<PrivacyPolicyPage />} />
+          <Route path="/termos" element={<TermsOfServicePage />} />
           <Route path="/app" element={<Layout />}>
             <Route index element={<FeedHomePage />} />
             <Route path="jogadores" element={<PlayersPage />} />

@@ -109,6 +109,17 @@ export function Layout() {
       </main>
       <footer className="space-y-3 border-t border-border py-6 text-center text-xs text-slate-600">
         <p>SemAleatório — comunidade brasileira</p>
+        <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-slate-500">
+          <Link to="/privacidade" className="hover:text-slate-300 hover:underline">
+            Política de Privacidade
+          </Link>
+          <span aria-hidden className="text-slate-700">
+            ·
+          </span>
+          <Link to="/termos" className="hover:text-slate-300 hover:underline">
+            Termos de Serviço
+          </Link>
+        </nav>
         <div className="mx-auto max-w-2xl px-4">
           <RiotLegalNotice />
         </div>

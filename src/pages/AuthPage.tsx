@@ -122,7 +122,7 @@ export function AuthPage() {
 
       <div className="flex min-h-dvh flex-col bg-bg text-slate-200">
         <header className="border-b border-border px-4 py-3">
-          <div className="mx-auto flex max-w-md items-center justify-between">
+          <div className="mx-auto flex max-w-md items-center">
             <Link
               to="/"
               className="block rounded-md p-0 leading-none ring-offset-2 ring-offset-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
@@ -133,9 +133,6 @@ export function AuthPage() {
                 imgClassName="h-11 w-auto max-w-[min(100vw-8rem,18rem)] object-left sm:h-12"
                 loading="eager"
               />
-            </Link>
-            <Link to="/app" className="text-sm text-slate-400 hover:text-white">
-              Ver mural
             </Link>
           </div>
         </header>

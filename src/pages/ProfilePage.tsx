@@ -10,6 +10,14 @@ import { vercelApiCall, vercelApiConfigured } from '../firebase/api'
 import { db } from '../firebase/config'
 import { PLAYER_TAG_OPTIONS, QUEUE_LABELS, ROLES } from '../lib/constants'
 import { isPremiumActive } from '../lib/plan'
+import {
+  buildRiotAuthorizeUrlForBrowser,
+  completeRiotSsoInBrowser,
+  logRsoBrowserDiagnostics,
+  profilePatchFromRiotAccount,
+  riotRsoBrowserConfigured,
+  RSO_LOG_PREFIX,
+} from '../lib/riotRsoBrowser'
 import { getPublicSiteUrl } from '../lib/siteUrl'
 import { hasSemiAleatorioSeal } from '../lib/seal'
 import { formatLastSeenAgo, isRecentlyActive } from '../lib/timeAgoFirestore'
@@ -17,7 +25,7 @@ import type { PlayerStatus, QueueType, UserProfile } from '../types/models'
 
 export function ProfilePage() {
   const { user, profile, loading, refreshProfile, updateLocalProfile } = useAuth()
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const viewUid = params.get('u')
   const [viewProfile, setViewProfile] = useState<UserProfile | null>(null)
   const [rateOpen, setRateOpen] = useState(false)
@@ -56,6 +64,89 @@ export function ProfilePage() {
     setRiotNick(profile.nickname ?? '')
     setRiotTag(profile.tag ?? '')
   }, [profile?.uid, profile?.nickname, profile?.tag])
+
+  useEffect(() => {
+    const code = params.get('code')
+    const st = params.get('state')
+    const oauthErr = params.get('error')
+    const oauthErrDesc = params.get('error_description')
+
+    if (oauthErr && !code) {
+      console.warn(`${RSO_LOG_PREFIX} Riot redireccionou com erro (query)`, {
+        error: oauthErr,
+        error_description: oauthErrDesc,
+      })
+    }
+
+    if (!code || !st) return
+
+    if (!user || !db) {
+      console.warn(`${RSO_LOG_PREFIX} callback com code+state mas user/db indisponível — espera login/Firebase`, {
+        temUser: !!user,
+        temDb: !!db,
+      })
+      return
+    }
+
+    console.info(`${RSO_LOG_PREFIX} callback OAuth detetado (code + state na URL)`)
+
+    const key = `${code}:${st}`
+    const lockKey = `rso_lock_${key}`
+    if (sessionStorage.getItem(lockKey)) {
+      console.info(`${RSO_LOG_PREFIX} lock duplicado ignorado (Strict Mode ou refresh)`, lockKey)
+      return
+    }
+    sessionStorage.setItem(lockKey, '1')
+
+    let cancelled = false
+    setLinkRiotLoading(true)
+    setRiotMsg(null)
+
+    ;(async () => {
+      try {
+        const acc = await completeRiotSsoInBrowser(code, st)
+        const patch = profilePatchFromRiotAccount(
+          acc.gameName,
+          acc.tagLine,
+          acc.puuid,
+          'UNRANKED',
+        )
+        updateLocalProfile(patch as Partial<UserProfile>)
+        await persistProfile(user.uid, patch as Record<string, unknown>)
+        await refreshProfile()
+        if (!cancelled) {
+          setRiotMsg(
+            'Conta Riot ligada (browser). Elo em UNRANKED — a confirmação manual com servidor ainda preenche ranked.',
+          )
+        }
+      } catch (e) {
+        sessionStorage.removeItem(lockKey)
+        console.error(`${RSO_LOG_PREFIX} erro no callback`, e)
+        if (!cancelled) {
+          setRiotMsg(
+            e instanceof Error ? e.message : 'Erro ao concluir o login Riot.',
+          )
+        }
+      } finally {
+        if (!cancelled) setLinkRiotLoading(false)
+        const next = new URLSearchParams(params)
+        next.delete('code')
+        next.delete('state')
+        setParams(next, { replace: true })
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    params,
+    user,
+    db,
+    setParams,
+    refreshProfile,
+    updateLocalProfile,
+  ])
 
   const seal = display && (hasSemiAleatorioSeal(display) || display.semiAleatorio)
 
@@ -111,6 +202,35 @@ export function ProfilePage() {
     if (!user || !isOwn) return
     updateLocalProfile({ [key]: value } as Partial<UserProfile>)
     await persistProfile(user.uid, { [key]: value } as Record<string, unknown>)
+  }
+
+  function startRiotSso() {
+    logRsoBrowserDiagnostics('clique: Entrar com conta Riot')
+
+    if (!user) {
+      console.warn(`${RSO_LOG_PREFIX} abortado: sem sessão Firebase no perfil`)
+      setRiotMsg('Inicia sessão para ligar a conta Riot.')
+      return
+    }
+    if (!riotRsoBrowserConfigured()) {
+      console.warn(
+        `${RSO_LOG_PREFIX} abortado: VITE_RIOT_RSO_CLIENT_ID vazio — vê grupo de diagnóstico acima`,
+      )
+      setRiotMsg(
+        'Define VITE_RIOT_RSO_CLIENT_ID (e VITE_RIOT_RSO_CLIENT_SECRET) no .env.',
+      )
+      return
+    }
+    setLinkRiotLoading(true)
+    setRiotMsg(null)
+    try {
+      const url = buildRiotAuthorizeUrlForBrowser(user.uid)
+      window.location.assign(url)
+    } catch (e) {
+      console.error(`${RSO_LOG_PREFIX} excepção ao montar URL authorize`, e)
+      setRiotMsg(e instanceof Error ? e.message : 'Erro ao iniciar RSO.')
+      setLinkRiotLoading(false)
+    }
   }
 
   async function confirmRiotId() {
@@ -392,23 +512,52 @@ export function ProfilePage() {
             </h2>
             <p className="text-sm text-slate-400">
               {profile?.riotPuuid
-                ? `Confirmado na API: ${profile.nickname ?? '?'}#${profile.tag ?? '?'}`
-                : 'Indica o teu Riot ID e confirma — o servidor consulta a Riot e grava PUUID e elo.'}
+                ? `Ligado: ${profile.nickname ?? '?'}#${profile.tag ?? '?'}`
+                : 'Liga a tua conta com o login oficial da Riot (RSO) ou confirma o Riot ID à mão.'}
             </p>
             <p className="text-xs leading-relaxed text-slate-500">
-              Só precisas da <code className="text-[0.65rem]">RIOT_API_KEY</code> no backend (Vercel
-              ou <code className="text-[0.65rem]">vercel dev</code>). Sem OAuth, sem redirect no
-              portal da Riot.
+              O fluxo atual corre no browser (segredos em{' '}
+              <code className="text-[0.65rem]">VITE_RIOT_RSO_*</code> — expostos no bundle). Exige{' '}
+              <a
+                href="https://support-developer.riotgames.com/hc/en-us/articles/22801670382739-RSO-Riot-Sign-On"
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary underline-offset-2 hover:underline"
+              >
+                cliente RSO aprovado
+              </a>{' '}
+              e <code className="text-[0.65rem]">redirect_uri</code> igual a esta página (ex.{' '}
+              <code className="text-[0.65rem]">/app/perfil</code>). Confirmação manual continua a
+              usar o servidor e <code className="text-[0.65rem]">RIOT_API_KEY</code>.
             </p>
             {import.meta.env.DEV ? (
               <p className="rounded-lg border border-border bg-white/5 px-3 py-2 text-xs text-slate-400">
-                Dev: <code className="text-[0.65rem]">npm run dev:all</code> — Vite faz proxy de{' '}
-                <code className="text-[0.65rem]">/api</code> para a porta do{' '}
-                <code className="text-[0.65rem]">vercel dev</code> (padrão 3000). Define{' '}
-                <code className="text-[0.65rem]">FIREBASE_SERVICE_ACCOUNT_JSON</code> e{' '}
-                <code className="text-[0.65rem]">RIOT_API_KEY</code> no <code className="text-[0.65rem]">.env</code>.
+                Dev só com Vite: define{' '}
+                <code className="text-[0.65rem]">
+                  VITE_RIOT_RSO_TOKEN_URL=/__riot-oauth/token
+                </code>{' '}
+                e{' '}
+                <code className="text-[0.65rem]">
+                  VITE_RIOT_RSO_ACCOUNT_ME_URL=/__riot-oauth/account-me
+                </code>{' '}
+                para contornar CORS. Na Vercel, aponta ambos para{' '}
+                <code className="text-[0.65rem]">/api/riotRsoBrowserProxy</code> (rota sem
+                Firebase).
               </p>
             ) : null}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={linkRiotLoading}
+                onClick={() => startRiotSso()}
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-black ring-1 ring-primary/40 hover:bg-primary/90 disabled:opacity-50"
+              >
+                {linkRiotLoading ? 'A abrir a Riot…' : 'Entrar com conta Riot (oficial)'}
+              </button>
+            </div>
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-600">
+              Ou confirma manualmente
+            </p>
             <div className="flex max-w-md flex-col gap-3 sm:flex-row sm:items-end">
               <label className="block flex-1 text-xs text-slate-500">
                 Nome de invocador

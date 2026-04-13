@@ -12,6 +12,16 @@ export default defineConfig(({ mode }) => {
     plugins: [react(), tailwindcss()],
     server: {
       proxy: {
+        '/__riot-oauth/token': {
+          target: 'https://auth.riotgames.com',
+          changeOrigin: true,
+          rewrite: () => '/token',
+        },
+        '/__riot-oauth/account-me': {
+          target: 'https://americas.api.riotgames.com',
+          changeOrigin: true,
+          rewrite: () => '/riot/account/v1/accounts/me',
+        },
         '/api': {
           target: apiProxyTarget,
           changeOrigin: true,

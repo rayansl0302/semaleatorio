@@ -1,8 +1,8 @@
 import { requireUid } from '../vercel-api/lib/auth.js'
-import { getAdmin, getDb } from '../vercel-api/lib/admin.js'
+import { getAdmin } from '../vercel-api/lib/admin.js'
 import { ApiError } from '../vercel-api/lib/errors.js'
 import { postHandler } from '../vercel-api/lib/handler.js'
-import { profileSlugFromNick } from '../vercel-api/lib/profileSlug.js'
+import { persistLinkedRiotProfile } from '../vercel-api/lib/persistRiotLink.js'
 import { FetchRankError, fetchRankByRiotId } from '../vercel-api/lib/riotRank.js'
 
 export default postHandler(async (req, data) => {
@@ -44,24 +44,13 @@ export default postHandler(async (req, data) => {
     throw e
   }
 
-  const db = getDb()
-  const slug = profileSlugFromNick(gameName, tagLine)
-  await db.doc(`users/${uid}`).set(
-    {
-      nickname: gameName,
-      tag: tagLine,
-      riotPuuid: rank.puuid,
-      elo: rank.elo,
-      profileSlug: slug,
-    },
-    { merge: true },
-  )
-
-  return {
+  const saved = await persistLinkedRiotProfile(
+    uid,
     gameName,
     tagLine,
-    puuid: rank.puuid,
-    elo: rank.elo,
-    profileSlug: slug,
-  }
+    rank.puuid,
+    rank.elo,
+  )
+
+  return saved
 })
