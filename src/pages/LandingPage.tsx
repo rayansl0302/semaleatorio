@@ -64,7 +64,7 @@ export function LandingPage() {
     <>
       <Helmet>
         <title>
-          SemAleatório — Chega de aleatório troll no LoL · duo, flex e Clash BR
+          {`SemAleatório — Chega de aleatório troll no LoL · duo, flex e Clash BR`}
         </title>
         <meta
           name="description"

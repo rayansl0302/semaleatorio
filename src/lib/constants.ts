@@ -30,8 +30,9 @@ export const STATUS_LABELS: Record<string, string> = {
 
 export const FREE_FAVORITES_LIMIT = 5
 
-export function eloRank(elo: string): number {
-  const base = elo.split(' ')[0]?.toUpperCase() ?? 'UNRANKED'
+export function eloRank(elo: string | undefined | null): number {
+  const s = elo == null || typeof elo !== 'string' ? '' : elo.trim()
+  const base = s.split(' ')[0]?.toUpperCase() ?? 'UNRANKED'
   const idx = ELO_ORDER.indexOf(base as (typeof ELO_ORDER)[number])
   return idx === -1 ? ELO_ORDER.length : idx
 }

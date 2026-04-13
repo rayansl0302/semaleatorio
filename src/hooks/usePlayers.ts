@@ -47,9 +47,13 @@ export function usePlayers() {
         (snap) => {
           const list: UserProfile[] = []
           snap.forEach((d) => {
-            const p = d.data() as UserProfile
+            const p = d.data() as Partial<UserProfile>
             if (p.shadowBanned) return
-            list.push(p)
+            const elo =
+              typeof p.elo === 'string' && p.elo.trim() !== ''
+                ? p.elo.trim()
+                : 'UNRANKED'
+            list.push({ ...p, uid: d.id, elo } as UserProfile)
           })
           setRaw(list)
           setError(null)

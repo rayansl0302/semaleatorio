@@ -91,16 +91,16 @@ export function PublicProfilePage() {
     <>
       <Helmet>
         <title>
-          {fullNick} no SemAleatório — {target.elo}
+          {`${fullNick} no SemAleatório — ${target.elo ?? 'UNRANKED'}`}
         </title>
         <meta
           name="description"
-          content={`Jogue duo ou flex com ${fullNick} (${target.elo}) no SemAleatório — comunidade BR de League of Legends.`}
+          content={`Jogue duo ou flex com ${fullNick} (${target.elo ?? 'UNRANKED'}) no SemAleatório — comunidade BR de League of Legends.`}
         />
         <meta property="og:title" content={`Jogar com ${fullNick} — SemAleatório`} />
         <meta
           property="og:description"
-          content={`${target.elo} · ${target.status === 'LFG' ? 'Procurando time' : 'Perfil público'}`}
+          content={`${target.elo ?? 'UNRANKED'} · ${target.status === 'LFG' ? 'Procurando time' : 'Perfil público'}`}
         />
         <meta property="og:type" content="profile" />
         {site ? <meta property="og:url" content={`${site}/u/${slug}`} /> : null}

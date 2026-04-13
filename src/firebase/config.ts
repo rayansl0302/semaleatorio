@@ -33,6 +33,21 @@ function str(v: unknown): string | undefined {
   return typeof v === 'string' && v.trim() !== '' ? v.trim() : undefined
 }
 
+/** Chaves obrigatórias no `.env` da raiz (prefixo VITE_ — exigido pelo Vite). */
+export const REQUIRED_FIREBASE_VITE_KEYS = [
+  'VITE_FIREBASE_API_KEY',
+  'VITE_FIREBASE_AUTH_DOMAIN',
+  'VITE_FIREBASE_PROJECT_ID',
+  'VITE_FIREBASE_STORAGE_BUCKET',
+  'VITE_FIREBASE_MESSAGING_SENDER_ID',
+  'VITE_FIREBASE_APP_ID',
+] as const
+
+export function missingFirebaseViteEnvVars(): readonly string[] {
+  const env = import.meta.env as Record<string, string | undefined>
+  return REQUIRED_FIREBASE_VITE_KEYS.filter((k) => !str(env[k]))
+}
+
 /**
  * Auth (Google popup etc.) exige o mesmo objeto do Console: apiKey, authDomain,
  * projectId, storageBucket, messagingSenderId, appId. Se faltar authDomain/appId,

@@ -1,4 +1,11 @@
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+import {
+  Link,
+  NavLink,
+  Navigate,
+  Outlet,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom'
 import { BrandLogo } from './BrandLogo'
 import { useAuth } from '../contexts/AuthContext'
 import { useFcmRegistration } from '../hooks/useFcmRegistration'
@@ -10,12 +17,25 @@ const navCls = ({ isActive }: { isActive: boolean }) =>
 
 export function Layout() {
   const location = useLocation()
-  const { user, firebaseConfigured, logout } = useAuth()
+  const navigate = useNavigate()
+  const { user, loading, firebaseConfigured, logout } = useAuth()
   useFcmRegistration(user)
 
   const entrarHref = `/entrar?redirect=${encodeURIComponent(
     `${location.pathname}${location.search}` || '/app',
   )}`
+
+  /** Área /app só com sessão; sem Firebase configurado mantém-se o outlet (mensagens de setup). */
+  if (firebaseConfigured && loading) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-bg text-slate-400">
+        Carregando…
+      </div>
+    )
+  }
+  if (firebaseConfigured && !user) {
+    return <Navigate to={entrarHref} replace />
+  }
 
   return (
     <div className="flex min-h-dvh flex-col bg-bg text-slate-200">
@@ -59,22 +79,25 @@ export function Layout() {
               </>
             )}
             {!firebaseConfigured ? (
-              <span className="px-2 text-xs text-amber-400">Firebase off</span>
-            ) : user ? (
+              <>
+                <span className="px-2 text-xs text-amber-400">Firebase off</span>
+                <Link
+                  to={entrarHref}
+                  className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-black hover:bg-primary/90"
+                >
+                  Entrar
+                </Link>
+              </>
+            ) : (
               <button
                 type="button"
-                onClick={() => logout()}
+                onClick={() => {
+                  void logout().then(() => navigate('/', { replace: true }))
+                }}
                 className="rounded-lg px-3 py-2 text-sm text-slate-400 hover:bg-white/5 hover:text-white"
               >
                 Sair
               </button>
-            ) : (
-              <Link
-                to={entrarHref}
-                className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-black hover:bg-primary/90"
-              >
-                Entrar
-              </Link>
             )}
             </nav>
           </div>

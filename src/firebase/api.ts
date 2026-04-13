@@ -1,26 +1,34 @@
+/**
+ * Chamadas ao Express local/remoto. A chave Riot e outras credenciais ficam no servidor;
+ * o browser só envia o JWT Firebase.
+ */
+import {
+  backendApiBaseUrlConfigured,
+  getBackendApiBaseUrl,
+} from '../lib/backendApiUrl'
 import { auth } from './config'
 
 type ApiResponse<T> = { result?: T; error?: { message?: string; code?: string } }
 
 /**
- * Chama rotas em `/api/*` no deploy Vercel (substitui Cloud Functions).
+ * Chama rotas `POST /api/*` no backend (Railway, Vercel, etc.).
  * Corpo: `{ data: payload }` · auth: `Authorization: Bearer <idToken>`.
  */
 export async function vercelApiCall<TResponse>(
   routeName: string,
   data: Record<string, unknown> = {},
 ): Promise<TResponse> {
-  const base = (import.meta.env.VITE_VERCEL_API_URL as string | undefined)?.trim()
+  const base = getBackendApiBaseUrl()
   if (!base) {
     throw new Error(
-      'Defina VITE_VERCEL_API_URL no .env (URL do site na Vercel, ex.: https://semaleatorio.vercel.app).',
+      'Defina VITE_API_URL ou VITE_BACKEND_URL no .env (raiz) — URL do servidor Node, sem barra no fim. Ex.: http://localhost:8787. Opcional: VITE_VERCEL_API_URL (só API Vercel).',
     )
   }
   if (!auth?.currentUser) {
     throw new Error('Faça login.')
   }
   const token = await auth.currentUser.getIdToken()
-  const url = `${base.replace(/\/$/, '')}/api/${routeName}`
+  const url = `${base}/api/${routeName}`
   const res = await fetch(url, {
     method: 'POST',
     headers: {
@@ -44,5 +52,5 @@ export async function vercelApiCall<TResponse>(
 }
 
 export function vercelApiConfigured(): boolean {
-  return Boolean((import.meta.env.VITE_VERCEL_API_URL as string | undefined)?.trim())
+  return backendApiBaseUrlConfigured()
 }

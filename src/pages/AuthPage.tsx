@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { BrandLogo } from '../components/BrandLogo'
 import { useAuth } from '../contexts/AuthContext'
+import { missingFirebaseViteEnvVars } from '../firebase/config'
 import { authErrorMessage } from '../lib/authErrors'
 
 type Mode = 'login' | 'register'
@@ -34,6 +35,8 @@ export function AuthPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [resetSent, setResetSent] = useState(false)
+
+  const missingFirebaseKeys = missingFirebaseViteEnvVars()
 
   useEffect(() => {
     if (user) navigate(redirect, { replace: true })
@@ -146,10 +149,36 @@ export function AuthPage() {
           </p>
 
           {!firebaseConfigured ? (
-            <p className="mt-8 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-center text-sm text-amber-200">
-              Firebase não configurado. Preencha o <code className="text-xs">.env</code> com as
-              chaves do projeto e reinicie o servidor.
-            </p>
+            <div className="mt-8 space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+              <p className="text-center font-medium text-amber-100">
+                Firebase (app Web) não está ativo no front-end.
+              </p>
+              <p className="text-center text-amber-200/90">
+                No ficheiro <code className="rounded bg-black/30 px-1 text-xs">.env</code> na{' '}
+                <strong className="text-amber-100">raiz do projeto</strong> (não em{' '}
+                <code className="text-xs">backend/</code>), define as variáveis com prefixo{' '}
+                <code className="text-xs">VITE_</code> — copia da Consola Firebase → Definições do
+                projeto → A tua aplicação → SDK de configuração (não uses o JSON da service account
+                aqui).
+              </p>
+              {missingFirebaseKeys.length > 0 ? (
+                <div className="rounded-lg border border-amber-500/20 bg-black/20 px-3 py-2">
+                  <p className="mb-2 text-xs font-medium text-amber-100/90">
+                    Em falta ou vazias ({missingFirebaseKeys.length}):
+                  </p>
+                  <ul className="list-inside list-disc space-y-0.5 font-mono text-xs text-amber-100/80">
+                    {missingFirebaseKeys.map((k) => (
+                      <li key={k}>{k}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              <p className="text-center text-xs text-amber-200/70">
+                Depois de guardar o <code className="text-[0.65rem]">.env</code>, reinicia o Vite
+                (para o <code className="text-[0.65rem]">npm run dev</code> ou{' '}
+                <code className="text-[0.65rem]">npm run dev:all</code>).
+              </p>
+            </div>
           ) : (
             <>
               <div className="mt-8 flex rounded-xl border border-border bg-card p-1">

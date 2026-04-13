@@ -30,9 +30,34 @@ export function usePosts(max = 50) {
         q,
         (snap) => {
           const list: PostDoc[] = []
-          snap.forEach((d) =>
-            list.push({ id: d.id, ...(d.data() as Omit<PostDoc, 'id'>) }),
-          )
+          snap.forEach((d) => {
+            const data = d.data() as Partial<Omit<PostDoc, 'id'>>
+            const eloMin =
+              typeof data.eloMin === 'string' && data.eloMin.trim() !== ''
+                ? data.eloMin.trim()
+                : 'UNRANKED'
+            const role =
+              typeof data.role === 'string' && data.role.trim() !== ''
+                ? data.role.trim()
+                : 'MID'
+            const queueType =
+              data.queueType === 'duo' ||
+              data.queueType === 'flex' ||
+              data.queueType === 'clash'
+                ? data.queueType
+                : 'duo'
+            list.push({
+              id: d.id,
+              uid: typeof data.uid === 'string' ? data.uid : '',
+              title: typeof data.title === 'string' ? data.title : 'Post',
+              description:
+                typeof data.description === 'string' ? data.description : '',
+              eloMin,
+              role,
+              queueType,
+              createdAt: data.createdAt ?? null,
+            })
+          })
           setPosts(list)
           setError(null)
         },

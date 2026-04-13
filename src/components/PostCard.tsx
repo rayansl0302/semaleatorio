@@ -43,8 +43,8 @@ export function PostCard({ post, onAuthorClick }: Props) {
       <p className="mt-2 text-sm text-slate-400">{post.description}</p>
       <div className="mt-3 flex flex-wrap gap-2 text-xs">
         <span className="inline-flex items-center gap-1.5 rounded-md bg-white/5 px-2 py-1 text-slate-300">
-          <LolEloIcon elo={post.eloMin} className="h-5 w-5" />
-          Elo mín: {post.eloMin}
+          <LolEloIcon elo={post.eloMin ?? 'UNRANKED'} className="h-5 w-5" />
+          Elo mín: {post.eloMin ?? 'UNRANKED'}
         </span>
         <span className="inline-flex items-center gap-1.5 rounded-md bg-white/5 px-2 py-1 text-slate-300">
           <LolRoleIcon role={post.role} className="h-4 w-4" />

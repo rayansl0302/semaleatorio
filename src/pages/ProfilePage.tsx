@@ -126,7 +126,16 @@ export function ProfilePage() {
   }
 
   async function startRiotOAuth() {
-    if (!vercelApiConfigured() || !user) return
+    if (!user) {
+      setRiotMsg('Inicia sessão para ligar a conta Riot.')
+      return
+    }
+    if (!vercelApiConfigured()) {
+      setRiotMsg(
+        'Backend não configurado: no .env da raiz define VITE_API_URL ou VITE_BACKEND_URL (ex.: http://localhost:8787). Reinicia o Vite.',
+      )
+      return
+    }
     setRiotOAuthLoading(true)
     setRiotMsg(null)
     try {
@@ -188,12 +197,11 @@ export function ProfilePage() {
     <div className="mx-auto max-w-5xl space-y-8 pb-8">
       <Helmet>
         <title>
-          {display.nickname}#{display.tag}
-          {isOwn ? ' — Meu perfil' : ' — Perfil'} · SemAleatório
+          {`${display.nickname ?? 'Invocador'}#${display.tag ?? 'BR1'}${isOwn ? ' — Meu perfil' : ' — Perfil'} · SemAleatório`}
         </title>
         <meta
           name="description"
-          content={`${display.elo} · ${statusPublicLabel} no SemAleatório (BR).`}
+          content={`${display.elo ?? 'UNRANKED'} · ${statusPublicLabel} no SemAleatório (BR).`}
         />
       </Helmet>
 
@@ -400,6 +408,16 @@ export function ProfilePage() {
                 ? `Conectado: ${profile.nickname ?? '?'}#${profile.tag ?? '?'}`
                 : 'Ainda não ligou a conta Riot ao perfil.'}
             </p>
+            {!vercelApiConfigured() ? (
+              <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                Para o login Riot funcionar, adiciona no <code className="text-[0.65rem]">.env</code>{' '}
+                da raiz:{' '}
+                <code className="text-[0.65rem]">VITE_API_URL=http://localhost:8787</code> (ou{' '}
+                <code className="text-[0.65rem]">VITE_BACKEND_URL</code>){' '}
+                (com <code className="text-[0.65rem]">npm run dev:all</code>) ou a URL do teu deploy, sem
+                barra no fim. Reinicia o servidor de desenvolvimento depois de guardar.
+              </p>
+            ) : null}
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -414,7 +432,11 @@ export function ProfilePage() {
                     : 'Conectar com a Riot (login oficial)'}
               </button>
             </div>
-            {riotMsg && <p className="text-sm text-slate-400">{riotMsg}</p>}
+            {riotMsg ? (
+              <p className="rounded-lg border border-border bg-white/5 px-3 py-2 text-sm text-amber-100">
+                {riotMsg}
+              </p>
+            ) : null}
             <p className="text-xs text-slate-600">
               Ao clicar, o site redireciona para{' '}
               <code className="text-slate-500">auth.riotgames.com</code>. Depois de

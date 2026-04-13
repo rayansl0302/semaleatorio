@@ -31,20 +31,23 @@ const ELO_FILENAME: Partial<Record<EloTier, string>> = {
   CHALLENGER: '9476-challenger.png',
 }
 
-export function roleIconSrc(role: string): string | undefined {
-  const r = role.toUpperCase() as Role
+export function roleIconSrc(role: string | undefined | null): string | undefined {
+  if (role == null || typeof role !== 'string') return undefined
+  const r = role.trim().toUpperCase() as Role
+  if (!r) return undefined
   const file = ROLE_FILENAME[r]
   if (!file) return undefined
   return `${LOL_LANE_ICONS_BASE}/${file}`
 }
 
 /** Primeira palavra do elo (ex.: "GOLD I" → "GOLD"). */
-export function eloTierKey(elo: string): string {
-  const first = elo.trim().split(/\s+/)[0]
+export function eloTierKey(elo: string | undefined | null): string {
+  const s = elo == null || typeof elo !== 'string' ? '' : elo.trim()
+  const first = s.split(/\s+/)[0]
   return first ? first.toUpperCase() : 'UNRANKED'
 }
 
-export function eloIconSrc(elo: string): string | undefined {
+export function eloIconSrc(elo: string | undefined | null): string | undefined {
   const tier = eloTierKey(elo) as EloTier
   const file = ELO_FILENAME[tier]
   if (!file) return undefined

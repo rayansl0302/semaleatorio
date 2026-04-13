@@ -31,7 +31,7 @@ function completeOnce(code: string, state: string) {
         if (!vercelApiConfigured()) {
           return {
             ok: false as const,
-            error: 'Defina VITE_VERCEL_API_URL no .env (URL do deploy Vercel).',
+            error: 'Defina VITE_API_URL ou VITE_BACKEND_URL no .env (URL do backend).',
           }
         }
         await vercelApiCall('completeRiotOAuth', { code, state })

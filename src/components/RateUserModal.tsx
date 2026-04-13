@@ -31,7 +31,7 @@ export function RateUserModal({ open, onClose, target, fromUid }: Props) {
       setTimeout(onClose, 1200)
     } catch (e: unknown) {
       const err = e as { message?: string }
-      setMsg(err?.message ?? 'Deploy a função submitRating ou verifique o login.')
+      setMsg(err?.message ?? 'Confira VITE_API_URL / VITE_BACKEND_URL e o login.')
     } finally {
       setSending(false)
     }
@@ -107,7 +107,7 @@ export function RateUserModal({ open, onClose, target, fromUid }: Props) {
         </div>
         {!vercelApiConfigured() && (
           <p className="mt-2 text-xs text-amber-500">
-            API Vercel não configurada (defina VITE_VERCEL_API_URL).
+            API não configurada (VITE_API_URL ou VITE_BACKEND_URL no .env da raiz).
           </p>
         )}
       </form>

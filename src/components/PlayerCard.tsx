@@ -11,18 +11,19 @@ const statusColors: Record<string, string> = {
   OFFLINE: 'bg-muted/20 text-muted ring-1 ring-white/10',
 }
 
-function EloBadge({ elo }: { elo: string }) {
-  const hasIcon = Boolean(eloIconSrc(elo))
+function EloBadge({ elo }: { elo: string | undefined | null }) {
+  const label = elo?.trim() ? elo.trim() : 'UNRANKED'
+  const hasIcon = Boolean(eloIconSrc(label))
   return (
     <span
       className="inline-flex items-center gap-1.5 rounded-md bg-[#1a2332] px-2 py-0.5 text-xs font-semibold capitalize text-slate-200 ring-1 ring-white/10"
-      title={elo}
+      title={label}
     >
-      <LolEloIcon elo={elo} className="h-5 w-5" />
+      <LolEloIcon elo={label} className="h-5 w-5" />
       {!hasIcon && (
         <span className="h-2 w-2 shrink-0 rounded-full bg-primary/80" aria-hidden />
       )}
-      {elo}
+      {label}
     </span>
   )
 }

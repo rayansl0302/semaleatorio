@@ -1,8 +1,8 @@
-import type { VercelRequest } from '@vercel/node'
-import { ApiError } from './errors'
-import { getAdmin } from './admin'
+import type { Request } from 'express'
+import { ApiError } from './errors.js'
+import { getAdmin } from './admin.js'
 
-async function verifyBearer(req: VercelRequest) {
+async function verifyBearer(req: Request) {
   const h = req.headers.authorization
   if (!h?.startsWith('Bearer ')) {
     throw new ApiError(401, 'unauthenticated', 'Faça login.')
@@ -15,12 +15,12 @@ async function verifyBearer(req: VercelRequest) {
   }
 }
 
-export async function requireUid(req: VercelRequest): Promise<string> {
+export async function requireUid(req: Request): Promise<string> {
   const decoded = await verifyBearer(req)
   return decoded.uid
 }
 
-export async function requireAuthUser(req: VercelRequest): Promise<{
+export async function requireAuthUser(req: Request): Promise<{
   uid: string
   email: string
   name: string
