@@ -1,8 +1,8 @@
-import { requireUid } from './lib/auth'
-import { getAdmin } from './lib/admin'
-import { ApiError } from './lib/errors'
-import { postHandler } from './lib/handler'
-import { FetchRankError, fetchRankByRiotId } from './lib/riotRank'
+import { requireUid } from './lib/auth.js'
+import { getAdmin } from './lib/admin.js'
+import { ApiError } from './lib/errors.js'
+import { postHandler } from './lib/handler.js'
+import { FetchRankError, fetchRankByRiotId } from './lib/riotRank.js'
 
 export default postHandler(async (req, data) => {
   getAdmin()

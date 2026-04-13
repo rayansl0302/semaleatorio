@@ -1,6 +1,6 @@
 import type { VercelRequest } from '@vercel/node'
-import { ApiError } from './errors'
-import { getAdmin } from './admin'
+import { ApiError } from './errors.js'
+import { getAdmin } from './admin.js'
 
 async function verifyBearer(req: VercelRequest) {
   const h = req.headers.authorization

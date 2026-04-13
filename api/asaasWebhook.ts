@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { handleCors } from './lib/cors'
-import { ApiError } from './lib/errors'
-import { getAdmin } from './lib/admin'
-import { processAsaasWebhook } from './lib/asaasLogic'
+import { handleCors } from './lib/cors.js'
+import { ApiError } from './lib/errors.js'
+import { getAdmin } from './lib/admin.js'
+import { processAsaasWebhook } from './lib/asaasLogic.js'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleCors(req, res)) return

@@ -1,7 +1,7 @@
-import { requireUid } from './lib/auth'
-import { getAdmin } from './lib/admin'
-import { postHandler } from './lib/handler'
-import { riotCompleteOAuth } from './lib/riotOAuth'
+import { requireUid } from './lib/auth.js'
+import { getAdmin } from './lib/admin.js'
+import { postHandler } from './lib/handler.js'
+import { riotCompleteOAuth } from './lib/riotOAuth.js'
 
 export default postHandler(async (req, data) => {
   getAdmin()

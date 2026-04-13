@@ -1,8 +1,8 @@
 import { randomBytes } from 'node:crypto'
 import type { firestore } from 'firebase-admin'
-import { ApiError } from './errors'
-import { getAdmin, getDb } from './admin'
-import { FetchRankError, fetchRankByRiotId } from './riotRank'
+import { ApiError } from './errors.js'
+import { getAdmin, getDb } from './admin.js'
+import { FetchRankError, fetchRankByRiotId } from './riotRank.js'
 
 const AUTH_BASE = 'https://auth.riotgames.com'
 const TOKEN_URL = `${AUTH_BASE}/token`

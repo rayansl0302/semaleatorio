@@ -1,7 +1,7 @@
-import { requireUid } from './lib/auth'
-import { getAdmin, getDb } from './lib/admin'
-import { ApiError } from './lib/errors'
-import { postHandler } from './lib/handler'
+import { requireUid } from './lib/auth.js'
+import { getAdmin, getDb } from './lib/admin.js'
+import { ApiError } from './lib/errors.js'
+import { postHandler } from './lib/handler.js'
 
 export default postHandler(async (req, data) => {
   const admin = getAdmin()

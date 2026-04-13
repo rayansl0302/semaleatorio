@@ -1,5 +1,5 @@
-import { getAdmin, getDb } from './admin'
-import { ApiError } from './errors'
+import { getAdmin, getDb } from './admin.js'
+import { ApiError } from './errors.js'
 
 const PRICES_BRL: Record<string, number> = {
   premium_monthly: 29.9,

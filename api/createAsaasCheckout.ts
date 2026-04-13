@@ -1,7 +1,7 @@
-import { requireAuthUser } from './lib/auth'
-import { getAdmin } from './lib/admin'
-import { postHandler } from './lib/handler'
-import { createAsaasCheckoutHandler } from './lib/asaasLogic'
+import { requireAuthUser } from './lib/auth.js'
+import { getAdmin } from './lib/admin.js'
+import { postHandler } from './lib/handler.js'
+import { createAsaasCheckoutHandler } from './lib/asaasLogic.js'
 
 export default postHandler(async (req, data) => {
   getAdmin()

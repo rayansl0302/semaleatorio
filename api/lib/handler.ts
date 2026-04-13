@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { handleCors } from './cors'
-import { ApiError } from './errors'
+import { handleCors } from './cors.js'
+import { ApiError } from './errors.js'
 
 type Body = { data?: Record<string, unknown> }
 
