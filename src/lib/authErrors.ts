@@ -2,7 +2,7 @@
 export function authErrorMessage(code: string | undefined): string {
   switch (code) {
     case 'auth/email-already-in-use':
-      return 'Este e-mail já está cadastrado. Entre ou use outro e-mail.'
+      return 'Este e-mail já está cadastrado. Faça login ou use outro e-mail.'
     case 'auth/invalid-email':
       return 'E-mail inválido.'
     case 'auth/weak-password':

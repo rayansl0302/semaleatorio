@@ -1,4 +1,5 @@
 import { eloIconSrc, roleIconSrc } from '../lib/lolAssets'
+import { formatEloDisplay, roleLabel } from '../lib/constants'
 
 type ImgProps = {
   className?: string
@@ -16,7 +17,7 @@ export function LolRoleIcon({
     <img
       src={src}
       alt=""
-      title={title ?? role ?? ''}
+      title={title ?? roleLabel(role)}
       className={`shrink-0 object-contain ${className}`.trim()}
       loading="lazy"
       decoding="async"
@@ -35,7 +36,7 @@ export function LolEloIcon({
     <img
       src={src}
       alt=""
-      title={title ?? elo ?? ''}
+      title={title ?? formatEloDisplay(elo)}
       className={`shrink-0 object-contain ${className}`.trim()}
       loading="lazy"
       decoding="async"

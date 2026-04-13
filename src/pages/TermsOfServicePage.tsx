@@ -18,7 +18,7 @@ export function TermsOfServicePage() {
       <p>
         O SemAleatório é uma plataforma online que ajuda jogadores brasileiros a encontrarem parceiros para
         partidas de <strong className="text-slate-200">League of Legends</strong> (por exemplo duo, flex ou
-        Clash), por meio de perfis, listagens, posts de busca de grupo (LFG), reputação da comunidade e
+        Clash), por meio de perfis, listagens, posts de busca de time ou dupla, reputação da comunidade e
         ferramentas auxiliares. <strong className="text-slate-200">Não somos a Riot Games</strong> nem estamos
         endossados por ela. League of Legends é marca da Riot Games, Inc.
       </p>

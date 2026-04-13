@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Helmet } from 'react-helmet-async'
 import { Link } from 'react-router-dom'
-import { BrandLogo } from './BrandLogo'
+import { BrandLogo, BRAND_LOGO_TEXT_COMPACT_HEADER_IMG_CLASS } from './BrandLogo'
 
 type LegalPageShellProps = {
   title: string
@@ -18,8 +18,8 @@ export function LegalPageShell({ title, description, children }: LegalPageShellP
         <meta name="robots" content="index,follow" />
       </Helmet>
       <div className="min-h-dvh bg-bg text-slate-200">
-        <header className="border-b border-border bg-bg/90 px-4 py-3 backdrop-blur">
-          <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3">
+        <header className="border-b border-border bg-bg/95 px-4 py-2 backdrop-blur sm:py-2.5">
+          <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:gap-x-4">
             <Link
               to="/"
               className="block shrink-0 rounded-md p-0 leading-none ring-offset-2 ring-offset-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
@@ -27,7 +27,7 @@ export function LegalPageShell({ title, description, children }: LegalPageShellP
               <BrandLogo
                 variant="text"
                 className="leading-none"
-                imgClassName="h-11 w-auto max-w-[min(100vw-8rem,20rem)] object-left sm:h-12"
+                imgClassName={BRAND_LOGO_TEXT_COMPACT_HEADER_IMG_CLASS}
                 loading="eager"
               />
             </Link>

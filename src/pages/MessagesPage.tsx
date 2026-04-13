@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { rtdb } from '../firebase/config'
+import { db } from '../firebase/config'
 import { extractLikelyFirebaseUid, threadIdFor } from '../lib/messages'
-import { pushMessage, subscribeThreadMessages } from '../lib/rtdbMessages'
+import { pushMessageFs, subscribeThreadMessagesFs } from '../lib/firestoreMessages'
 import type { MessageDoc } from '../types/models'
 
 export function MessagesPage() {
@@ -27,17 +27,17 @@ export function MessagesPage() {
   }, [user, activePeer])
 
   useEffect(() => {
-    if (!rtdb || !tid || !user) {
+    if (!db || !tid || !user) {
       setMessages([])
       return
     }
-    return subscribeThreadMessages(rtdb, tid, setMessages)
+    return subscribeThreadMessagesFs(db, tid, setMessages)
   }, [tid, user])
 
   async function send(e: React.FormEvent) {
     e.preventDefault()
-    if (!rtdb || !user || !activePeer || !text.trim()) return
-    await pushMessage(rtdb, {
+    if (!db || !user || !activePeer || !text.trim()) return
+    await pushMessageFs(db, {
       threadId: threadIdFor(user.uid, activePeer),
       fromUid: user.uid,
       toUid: activePeer,
@@ -56,7 +56,7 @@ export function MessagesPage() {
         setParams({ com: uid })
         setPasteHint('UID colado e conversa aberta.')
       } else {
-        setPasteHint('Não achei um UID no clipboard. Cole um texto com o ID (20–32 caracteres).')
+        setPasteHint('Não encontramos um UID na área de transferência. Cole um texto com o ID (20–32 caracteres).')
       }
     } catch {
       setPasteHint('Permita acesso à área de transferência ou cole manualmente no campo.')
@@ -70,7 +70,7 @@ export function MessagesPage() {
           to="/entrar?redirect=/app/mensagens"
           className="text-primary underline-offset-2 hover:underline"
         >
-          Entre
+          Faça login
         </Link>{' '}
         para usar o chat opcional.
       </p>

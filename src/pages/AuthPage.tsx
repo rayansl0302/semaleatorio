@@ -2,7 +2,10 @@ import { FirebaseError } from 'firebase/app'
 import { Helmet } from 'react-helmet-async'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { BrandLogo } from '../components/BrandLogo'
+import {
+  BrandLogo,
+  BRAND_LOGO_TEXT_COMPACT_HEADER_IMG_CLASS,
+} from '../components/BrandLogo'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { LogIn, Sparkles, UserPlus } from '../lib/icons'
@@ -105,7 +108,7 @@ export function AuthPage() {
     try {
       await sendPasswordResetEmail(em)
       setResetSent(true)
-      toast.success('Se o e-mail existir na conta, enviámos o link de recuperação.')
+      toast.success('Se o e-mail existir na conta, enviamos o link de recuperação.')
     } catch (err) {
       const code = err instanceof FirebaseError ? err.code : undefined
       setError(authErrorMessage(code))
@@ -120,12 +123,12 @@ export function AuthPage() {
         <title>Entrar — SemAleatório</title>
         <meta
           name="description"
-          content="Entre ou crie conta no SemAleatório com Google ou e-mail e senha."
+          content="Faça login ou crie conta no SemAleatório com Google ou e-mail e senha."
         />
       </Helmet>
 
       <div className="flex min-h-dvh flex-col bg-bg text-slate-200">
-        <header className="border-b border-border px-4 py-3">
+        <header className="border-b border-border bg-bg/95 px-4 py-2 backdrop-blur sm:py-2.5">
           <div className="mx-auto flex max-w-md items-center">
             <Link
               to="/"
@@ -134,7 +137,7 @@ export function AuthPage() {
               <BrandLogo
                 variant="text"
                 className="leading-none"
-                imgClassName="h-11 w-auto max-w-[min(100vw-8rem,18rem)] object-left sm:h-12"
+                imgClassName={BRAND_LOGO_TEXT_COMPACT_HEADER_IMG_CLASS}
                 loading="eager"
               />
             </Link>
@@ -155,16 +158,16 @@ export function AuthPage() {
                 Firebase (app Web) não está ativo no front-end.
               </p>
               <p className="text-center text-amber-200/90">
-                No ficheiro <code className="rounded bg-black/30 px-1 text-xs">.env</code> na{' '}
-                <strong className="text-amber-100">raiz do projeto</strong>, define as variáveis com prefixo{' '}
-                <code className="text-xs">VITE_</code> — copia da Consola Firebase → Definições do
-                projeto → A tua aplicação → SDK de configuração (não uses o JSON da service account
+                No arquivo <code className="rounded bg-black/30 px-1 text-xs">.env</code> na{' '}
+                <strong className="text-amber-100">raiz do projeto</strong>, defina as variáveis com prefixo{' '}
+                <code className="text-xs">VITE_</code> — copie do Console do Firebase → Configurações do
+                projeto → Seu app → SDK de configuração (não use o JSON da conta de serviço
                 aqui).
               </p>
               {missingFirebaseKeys.length > 0 ? (
                 <div className="rounded-lg border border-amber-500/20 bg-black/20 px-3 py-2">
                   <p className="mb-2 text-xs font-medium text-amber-100/90">
-                    Em falta ou vazias ({missingFirebaseKeys.length}):
+                    Ausentes ou vazias ({missingFirebaseKeys.length}):
                   </p>
                   <ul className="list-inside list-disc space-y-0.5 font-mono text-xs text-amber-100/80">
                     {missingFirebaseKeys.map((k) => (

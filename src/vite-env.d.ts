@@ -1,14 +1,7 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  /** URL base onde existem as rotas /api/* (ex.: https://teu-app.vercel.app) */
-  readonly VITE_API_URL?: string
-  /** Alias de VITE_API_URL */
-  readonly VITE_BACKEND_URL?: string
-  /** Legado: URL do site com rotas /api na Vercel */
-  readonly VITE_VERCEL_API_URL?: string
-
-  /** RSO no browser (expõe segredo no bundle) */
+  /** RSO no browser (expõe segredo no bundle) — quando a Riot aprovar */
   readonly VITE_RIOT_RSO_CLIENT_ID?: string
   readonly VITE_RIOT_RSO_CLIENT_SECRET?: string
   readonly VITE_RIOT_RSO_REDIRECT_URI?: string

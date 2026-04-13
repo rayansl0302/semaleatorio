@@ -1,3 +1,4 @@
+import { formatEloDisplay, roleLabel } from '../lib/constants'
 import { LolEloIcon, LolRoleIcon } from './LolIcons'
 import type { UserProfile } from '../types/models'
 
@@ -34,7 +35,7 @@ export function CallModal({ player, open, onClose, onCopy }: Props) {
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-300">
           <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/5 px-2 py-1">
             <LolEloIcon elo={player.elo} className="h-6 w-6" />
-            {player.elo}
+            {formatEloDisplay(player.elo)}
           </span>
           {player.roles?.map((r) => (
             <span
@@ -42,7 +43,7 @@ export function CallModal({ player, open, onClose, onCopy }: Props) {
               className="inline-flex items-center gap-1 rounded-lg bg-white/5 px-2 py-1 text-xs"
             >
               <LolRoleIcon role={r} className="h-4 w-4" />
-              {r}
+              {roleLabel(r)}
             </span>
           ))}
         </div>

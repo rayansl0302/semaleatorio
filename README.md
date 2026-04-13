@@ -2,7 +2,7 @@
 
 **Pare de cair com aleatório. Jogue com quem sabe jogar.**
 
-Plataforma web para jogadores brasileiros encontrarem parceiros de League of Legends (duo, flex, Clash), com listagem em tempo real, posts LFG, perfil com Riot, reputação, **landing com SEO**, **perfil público compartilhável**, **Asaas** (checkout + webhook), base para **FCM**, seeds anti-lista vazia e **moderação** (denúncias + shadowban).
+Plataforma web para jogadores brasileiros encontrarem parceiros de League of Legends (duo, flex, Clash), com listagem em tempo real, posts LFG, perfil e reputação (avaliações no **Firestore**), **landing com SEO**, **perfil público compartilhável**, base para **FCM**, seeds anti-lista vazia e **moderação** (denúncias + shadowban). **Sem Cloud Functions** no repositório: tudo que o app faz passa pelo cliente + Firestore (pagamentos e API Riot com chave secreta ficam para um backend à parte, se quiseres).
 
 ## Marca (assets)
 
@@ -11,9 +11,9 @@ Arquivos em `src/assets/` usados na UI: `brasao.png`, `logo_completa.png`, `logo
 ## Stack
 
 - **Frontend:** React 19 + Vite 8 + TypeScript + Tailwind CSS 4 + `react-helmet-async`  
-- **Backend:** Firebase (Authentication, Firestore, Cloud Functions, Cloud Messaging Web)  
-- **Riot:** Cloud Function `fetchRiotRank`  
-- **Pagamentos:** Asaas (PIX nas cobranças geradas pela Function; webhook confirma e atualiza o Firestore)
+- **Backend:** Firebase (Authentication, Firestore, Cloud Messaging Web)  
+- **Riot / elo:** nick, tag e elo no Firestore (confirmação manual no perfil); integração com a API da Riot só com backend próprio (chave secreta).  
+- **Pagamentos:** não incluídos aqui; premium pode ser simulado em dev no perfil (Firestore).
 
 ## Rotas principais (domínio `.gg`)
 
@@ -36,7 +36,6 @@ Redirecionamentos: `/perfil` → `/app/perfil`, `/mensagens` → `/app/mensagens
 
 ```bash
 npm install
-cd functions && npm install && cd ..
 ```
 
 ### 2. Firebase (Console)
@@ -60,56 +59,11 @@ Copie `.env.example` para `.env`:
 firebase login
 firebase use --add
 firebase deploy --only firestore:rules,firestore:indexes
-
-Regras do **Realtime Database** (presença / digitação): arquivo `database.rules.json`. Publicar com:
-
-```bash
-firebase deploy --only database
-```
 ```
 
-Coleções extras cobertas pelas regras: `reports`, `seed_profiles` (leitura pública), `config/app` (leitura pública), `webhook_events` (somente servidor).
+Coleções extras cobertas pelas regras: `ratings` (criação pelo utilizador autenticado, doc id `fromUid__toUid`), `reports`, `seed_profiles` (leitura pública), `config/app` (leitura pública), `webhook_events` (reservado; sem escritas se não houver backend).
 
-### 5. Cloud Functions — env e secrets
-
-**Riot (`fetchRiotRank`):** segue o fluxo da [documentação LoL](https://developer.riotgames.com/docs/lol): **Account v1** em `americas.api.riotgames.com` (Riot ID → PUUID) e **League v4** no host de **plataforma** (`br1.api.riotgames.com` por padrão para BR). Defina `RIOT_API_KEY` no `.env` da raiz e/ou `functions/.env`; opcionalmente `RIOT_PLATFORM_ROUTING` (padrão `br1`). **Nunca** use prefixo `VITE_` na chave. No deploy, replique essas variáveis no Cloud se necessário.
-
-```bash
-# Asaas (continua via Secret Manager)
-firebase functions:secrets:set ASAAS_API_KEY
-firebase functions:secrets:set ASAAS_WEBHOOK_TOKEN
-```
-
-- **ASAAS_API_KEY:** chave da API (sandbox ou produção).  
-- **ASAAS_WEBHOOK_TOKEN:** token que você define no painel do Asaas ao cadastrar o webhook; a Function compara com o header `asaas-access-token`.
-
-Opcional — URL da API (padrão já é sandbox oficial):
-
-```bash
-firebase functions:config:set asaas.api_base="https://api.asaas.com/v3"
-```
-
-Ou use o parâmetro deploy `ASAAS_API_BASE` conforme a [documentação de params](https://firebase.google.com/docs/functions/config-env) (o código usa `defineString('ASAAS_API_BASE')` com default `https://api-sandbox.asaas.com/v3`).
-
-Deploy:
-
-```bash
-cd functions && npm run build && cd ..
-firebase deploy --only functions
-```
-
-**Webhook Asaas:** aponte para a URL HTTPS da Function **`asaasWebhook`** (ex.: `https://<região>-<projeto>.cloudfunctions.net/asaasWebhook`). Eventos: cobranças; o código aplica benefícios em **`PAYMENT_RECEIVED`**. `externalReference` da cobrança: `SA|<uid>|<produto>` com produto `premium_monthly`, `boost_1h` ou `boost_3h` (definido pela `createAsaasCheckout`).
-
-Funções:
-
-| Nome | Papel |
-|------|--------|
-| `fetchRiotRank` | Elo BR1 a partir de nick + tag |
-| `submitRating` | Avaliação + média + selo |
-| `createAsaasCheckout` | Cria cliente (se precisar) + cobrança PIX + retorna `invoiceUrl` |
-| `asaasWebhook` | Valida token, idempotência por `payment.id`, atualiza `plan` / `premiumUntil` / `boostUntil` |
-
-### 6. Rodar o app
+### 5. Rodar o app
 
 ```bash
 npm run dev
@@ -119,12 +73,12 @@ npm run dev
 
 - Novo usuário: **status LFG**, tag **BR1**, **região BR** (heurística timezone/idioma), **`profileSlug`** gerado do nick.  
 - Usuários antigos ganham `profileSlug` na próxima leitura do perfil se ainda não existir.  
-- No perfil: salvar nick/tag atualiza o slug; botão **Atualizar elo** chama a Riot.
+- No perfil: confirmar Riot ID grava nick/tag/slug no Firestore; ajusta o **elo exibido** manualmente.
 
 ## Aquisição e retenção
 
 - **Landing** com meta tags (`title`, `description`, Open Graph).  
-- **FCM:** com `VITE_FCM_VAPID_KEY`, o layout do app registra token em `users.fcmTokens` (array). Próximo passo: Cloud Function + Admin SDK para enviar notificações (ex.: “jungler gold online”).  
+- **FCM:** com `VITE_FCM_VAPID_KEY`, o app regista o token em `users.fcmTokens`. Para **enviar** notificações precisas de um serviço com credencial admin (não incluído neste repo).  
 - **Anti-lista vazia:** coleção somente leitura **`seed_profiles`** (documentos com os mesmos campos visuais de `users` + `active: true`); quando não há jogadores reais após os filtros, os seeds aparecem com badge **Exemplo**.  
 - **`config/app`:** documento opcional `{ onlineCountFloor: 12 }` para texto de presença no mural.
 

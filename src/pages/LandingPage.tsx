@@ -1,7 +1,10 @@
 import { Helmet } from 'react-helmet-async'
 import { useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { BrandLogo } from '../components/BrandLogo'
+import {
+  BrandLogo,
+  BRAND_LOGO_TEXT_HEADER_IMG_CLASS,
+} from '../components/BrandLogo'
 import { RiotLegalNotice } from '../components/RiotLegalNotice'
 import { useAuth } from '../contexts/AuthContext'
 import { getPublicSiteUrl } from '../lib/siteUrl'
@@ -42,11 +45,11 @@ const COMO = [
   {
     passo: '2',
     t: 'Filtra quem combina com você',
-    d: 'Elo, rota, duo / flex / Clash, quem está LFG agora. Lista ao vivo.',
+    d: 'Elo, rota, duo / flex / Clash e quem está procurando time ou dupla agora. Lista ao vivo.',
   },
   {
     passo: '3',
-    t: 'Copia o nick e fecha no client',
+    t: 'Copie o nick e feche no client',
     d: 'O que funciona no Brasil: LoL aberto, amizade, call e partida. Sem enrolação.',
   },
 ] as const
@@ -69,11 +72,11 @@ export function LandingPage() {
         </title>
         <meta
           name="description"
-          content="Cansado de int, AFK e duo que some? SemAleatório conecta jogadores BR com perfil, elo e reputação. LFG em tempo real para ranked e Clash — sem depender só da sorte da fila."
+          content="Cansado de int, AFK e duo que some? SemAleatório conecta jogadores BR com perfil, elo e reputação. Veja em tempo real quem quer subir fila (ranked, Clash) — sem depender só da sorte da fila."
         />
         <meta
           name="keywords"
-          content="League of Legends BR, duo ranked, parceiro lol, LFG brasil, flex queue, clash time, sem troll, soloq frustrante"
+          content="League of Legends BR, duo ranked, parceiro lol, busca de time brasil, flex queue, clash time, sem troll, soloq frustrante"
         />
         <meta
           property="og:title"
@@ -81,7 +84,7 @@ export function LandingPage() {
         />
         <meta
           property="og:description"
-          content="Encontre jogadores que jogam de verdade: reputação, filtros por elo e rota, LFG ao vivo. Duo e flex sem loteria."
+          content="Encontre jogadores que jogam de verdade: reputação, filtros por elo e rota, disponibilidade ao vivo. Duo e flex sem loteria."
         />
         <meta property="og:type" content="website" />
         {siteUrl ? <meta property="og:url" content={`${siteUrl}/`} /> : null}
@@ -95,7 +98,7 @@ export function LandingPage() {
       <div className="min-h-dvh bg-bg text-slate-200">
         <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(34,197,94,0.12),transparent)]" />
 
-        <header className="relative z-10 border-b border-border bg-bg/80 px-4 py-1.5 backdrop-blur sm:py-2">
+        <header className="relative z-10 border-b border-border bg-bg/80 px-4 py-2 backdrop-blur sm:py-2.5">
           <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 sm:gap-3">
             <Link
               to="/"
@@ -104,7 +107,7 @@ export function LandingPage() {
               <BrandLogo
                 variant="text"
                 className="leading-none"
-                imgClassName="h-14 w-auto max-w-[min(100vw-9rem,24rem)] object-left sm:h-[4.25rem] md:h-[4.75rem] lg:h-20"
+                imgClassName={BRAND_LOGO_TEXT_HEADER_IMG_CLASS}
                 loading="eager"
               />
             </Link>
@@ -166,12 +169,12 @@ export function LandingPage() {
                 to="/app/jogadores"
                 className="rounded-xl border border-border bg-card/80 px-8 py-4 text-center text-base font-semibold text-white backdrop-blur transition hover:border-slate-600 hover:bg-card sm:min-w-[220px]"
               >
-                Só ver quem tá LFG
+                Só ver quem está procurando time
               </Link>
             </div>
 
             <p className="mx-auto mt-8 max-w-lg text-center text-xs leading-relaxed text-slate-600">
-              Grátis para usar o que importa: aparecer, filtrar, postar LFG e copiar
+              Grátis para usar o que importa: aparecer, filtrar, publicar pedidos no feed e copiar
               nick. Premium só deixa sua busca mais rápida e visível — o core não fica
               trancado.
             </p>
@@ -214,7 +217,7 @@ export function LandingPage() {
                 <span className="text-primary font-semibold">
                   menos surpresa ruim
                 </span>
-                . Você vê elo, rotas, se a pessoa tá LFG, nota da comunidade e o selo
+                . Você vê elo, rotas, se a pessoa está procurando time ou dupla, nota da comunidade e o selo
                 SemAleatório pra quem se mantém bem avaliado — antes de gastar 40
                 minutos na mesma partida que um estranho que já desistiu no loading.
               </p>
@@ -234,7 +237,7 @@ export function LandingPage() {
                   </span>
                   <span>
                     <strong className="text-slate-200">Duo, flex e Clash</strong> no mesmo
-                    lugar, com posts LFG quando você precisa de uma rota específica.
+                    lugar, com pedidos no feed quando você precisa de uma rota específica.
                   </span>
                 </li>
                 <li className="flex gap-3">

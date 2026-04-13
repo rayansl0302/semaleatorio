@@ -10,7 +10,7 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == userId;
     }
 
-    // Campos alterados apenas pelo backend (Functions / webhook).
+    // Campos que o cliente não pode alterar (moderation / legado; médias vêm da coleção ratings).
     function touchesServerOnlyUserFields() {
       return request.resource.data.diff(resource.data).changedKeys()
         .hasAny([
@@ -19,7 +19,6 @@ service cloud.firestore {
           'semiAleatorio',
           'shadowBanned',
           'reportsCount',
-          'premiumUntil',
           'asaasCustomerId',
         ]);
     }
@@ -29,14 +28,23 @@ service cloud.firestore {
 
       allow create: if isOwner(userId)
         && request.resource.data.uid == userId
-        && !request.resource.data.keys().hasAny([
-          'premiumUntil',
-          'asaasCustomerId',
-        ]);
+        && !request.resource.data.keys().hasAny(['asaasCustomerId']);
 
       allow update: if isOwner(userId) && !touchesServerOnlyUserFields();
 
       allow delete: if isOwner(userId);
+    }
+
+    /** Mapa slug → uid para URLs /u/:slug */
+    match /profileSlugIndex/{slug} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['uid'])
+        && request.resource.data.uid == request.auth.uid;
+      allow update: if signedIn()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
     }
 
     match /posts/{postId} {
@@ -51,7 +59,8 @@ service cloud.firestore {
         && request.resource.data.description.size() <= 2000
         && request.resource.data.eloMin is string
         && request.resource.data.role is string
-        && request.resource.data.queueType in ['duo', 'flex', 'clash'];
+        && request.resource.data.queueType in ['duo', 'flex', 'clash']
+        && request.resource.data.createdAt == request.time;
 
       allow update, delete: if signedIn()
         && resource.data.uid == request.auth.uid;
@@ -70,14 +79,44 @@ service cloud.firestore {
         && request.resource.data.threadId is string
         && request.resource.data.text is string
         && request.resource.data.text.size() > 0
-        && request.resource.data.text.size() <= 4000;
+        && request.resource.data.text.size() <= 4000
+        && request.resource.data.createdAt == request.time;
 
       allow update, delete: if false;
     }
 
     match /ratings/{ratingId} {
-      allow read: if signedIn();
-      allow write: if false;
+      allow read: if true;
+
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly([
+          'fromUid',
+          'toUid',
+          'communication',
+          'skill',
+          'toxicity',
+          'overall',
+          'createdAt',
+        ])
+        && request.resource.data.fromUid == request.auth.uid
+        && request.resource.data.toUid is string
+        && request.resource.data.toUid != request.auth.uid
+        && ratingId == request.auth.uid + '__' + request.resource.data.toUid
+        && request.resource.data.communication is int
+        && request.resource.data.communication >= 1
+        && request.resource.data.communication <= 5
+        && request.resource.data.skill is int
+        && request.resource.data.skill >= 1
+        && request.resource.data.skill <= 5
+        && request.resource.data.toxicity is int
+        && request.resource.data.toxicity >= 1
+        && request.resource.data.toxicity <= 5
+        && request.resource.data.overall is number
+        && request.resource.data.overall >= 1
+        && request.resource.data.overall <= 5
+        && request.resource.data.createdAt == request.time;
+
+      allow update, delete: if false;
     }
 
     match /reports/{reportId} {
@@ -89,7 +128,8 @@ service cloud.firestore {
         && request.resource.data.reason.size() > 0
         && request.resource.data.reason.size() <= 64
         && request.resource.data.detail is string
-        && request.resource.data.detail.size() <= 500;
+        && request.resource.data.detail.size() <= 500
+        && request.resource.data.createdAt == request.time;
 
       allow read, update, delete: if false;
     }

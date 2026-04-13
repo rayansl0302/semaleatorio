@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { rtdb } from '../firebase/config'
+import { db } from '../firebase/config'
 import { useMessageThreads } from '../hooks/useMessageThreads'
 import { usePlayers } from '../hooks/usePlayers'
 import { extractLikelyFirebaseUid, threadIdFor } from '../lib/messages'
-import { pushMessage, subscribeThreadMessages } from '../lib/rtdbMessages'
+import { MESSAGE_DOCK_OPEN_EVENT } from '../lib/messageDock'
+import { pushMessageFs, subscribeThreadMessagesFs } from '../lib/firestoreMessages'
 import type { MessageDoc, UserProfile } from '../types/models'
 
 function formatDockTime(createdAt: MessageDoc['createdAt']): string {
@@ -37,17 +38,17 @@ function DockChatPanel({ myUid, peerUid, peerLabel, onBack }: DockChatProps) {
   const tid = useMemo(() => threadIdFor(myUid, peerUid), [myUid, peerUid])
 
   useEffect(() => {
-    if (!rtdb || !tid) {
+    if (!db || !tid) {
       setMessages([])
       return
     }
-    return subscribeThreadMessages(rtdb, tid, setMessages)
+    return subscribeThreadMessagesFs(db, tid, setMessages)
   }, [tid])
 
   async function send(e: React.FormEvent) {
     e.preventDefault()
-    if (!rtdb || !text.trim()) return
-    await pushMessage(rtdb, {
+    if (!db || !text.trim()) return
+    await pushMessageFs(db, {
       threadId: tid,
       fromUid: myUid,
       toUid: peerUid,
@@ -85,10 +86,10 @@ function DockChatPanel({ myUid, peerUid, peerLabel, onBack }: DockChatProps) {
           return (
             <div
               key={m.id}
-              className={`max-w-[90%] rounded-lg px-2.5 py-1.5 text-xs leading-snug ${
+              className={`max-w-[88%] rounded-2xl px-3 py-2 text-xs leading-snug shadow-sm ${
                 mine
-                  ? 'ml-auto bg-primary text-black'
-                  : 'mr-auto bg-white/10 text-slate-100'
+                  ? 'ml-auto rounded-br-md bg-primary text-black'
+                  : 'mr-auto rounded-bl-md bg-white/[0.08] text-slate-100 ring-1 ring-white/10'
               }`}
             >
               {m.text}
@@ -120,13 +121,25 @@ function DockChatPanel({ myUid, peerUid, peerLabel, onBack }: DockChatProps) {
 export function PlayersMessagesDock() {
   const { user } = useAuth()
   const { players } = usePlayers()
-  const { threads, error } = useMessageThreads(user?.uid)
+  const { threads } = useMessageThreads(user?.uid)
   const [expanded, setExpanded] = useState(false)
   const [search, setSearch] = useState('')
   const [selectedPeer, setSelectedPeer] = useState<string | null>(null)
   const [dockPasteHint, setDockPasteHint] = useState<string | null>(null)
 
-  if (!user || !rtdb) return null
+  useEffect(() => {
+    if (!user) return
+    const onOpen = (e: Event) => {
+      const uid = (e as CustomEvent<{ peerUid?: string }>).detail?.peerUid
+      if (!uid || uid === user.uid) return
+      setSelectedPeer(uid)
+      setExpanded(true)
+    }
+    window.addEventListener(MESSAGE_DOCK_OPEN_EVENT, onOpen)
+    return () => window.removeEventListener(MESSAGE_DOCK_OPEN_EVENT, onOpen)
+  }, [user])
+
+  if (!user || !db) return null
 
   function labelFor(uid: string): string {
     const p = players.find((x) => x.uid === uid)
@@ -143,11 +156,11 @@ export function PlayersMessagesDock() {
 
   return (
     <div
-      className={`fixed z-50 flex flex-col border border-border bg-card shadow-2xl shadow-black/50 transition-[width,height] duration-200 sm:right-4 ${
+      className={`fixed z-50 flex flex-col border border-border bg-card shadow-[0_-8px_40px_rgba(0,0,0,0.45)] transition-[width,height] duration-200 sm:right-4 ${
         expanded
-          ? 'bottom-0 right-0 max-h-[min(520px,70vh)] w-full max-w-full sm:bottom-4 sm:w-[min(100vw-2rem,340px)] sm:max-w-[340px] sm:rounded-xl'
-          : 'bottom-0 right-0 w-full max-w-full sm:bottom-4 sm:right-4 sm:w-[min(100vw-2rem,300px)] sm:max-w-[300px]'
-      } rounded-t-xl sm:rounded-xl`}
+          ? 'bottom-0 right-0 max-h-[min(560px,72vh)] w-full max-w-full sm:bottom-6 sm:w-[min(100vw-2rem,400px)] sm:max-w-[400px] sm:rounded-2xl'
+          : 'bottom-0 right-0 w-full max-w-full sm:bottom-6 sm:right-6 sm:w-[min(100vw-2rem,320px)] sm:max-w-[320px]'
+      } rounded-t-2xl sm:rounded-2xl`}
     >
       <button
         type="button"
@@ -155,10 +168,12 @@ export function PlayersMessagesDock() {
           setExpanded((e) => !e)
           if (expanded) setSelectedPeer(null)
         }}
-        className="flex w-full items-center justify-between gap-2 border-b border-border px-3 py-2.5 text-left hover:bg-white/[0.04] sm:rounded-t-xl"
+        className="flex w-full items-center justify-between gap-2 border-b border-border bg-card/95 px-4 py-3 text-left hover:bg-white/[0.04] sm:rounded-t-2xl"
       >
         <div className="flex min-w-0 items-center gap-2">
-          <span className="text-sm font-semibold text-white">Mensagens</span>
+          <span className="text-sm font-semibold tracking-tight text-white">
+            Mensagens
+          </span>
           {threads.length > 0 && (
             <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-medium text-slate-400">
               {threads.length}
@@ -223,14 +238,11 @@ export function PlayersMessagesDock() {
                   <p className="text-[10px] text-primary/90">{dockPasteHint}</p>
                 )}
               </div>
-              {error && (
-                <p className="shrink-0 px-3 py-2 text-[11px] text-red-400">{error}</p>
-              )}
               <div className="min-h-0 flex-1 overflow-y-auto">
                 {filtered.length === 0 ? (
                   <p className="px-3 py-6 text-center text-xs text-slate-500">
                     {threads.length === 0
-                      ? 'Nenhuma conversa ainda. Use Chamar no card do jogador ou abra pelo UID em Mensagens.'
+                      ? 'Nenhuma conversa ainda. Use Mensagem no feed ou no mural, ou abra pelo UID em Mensagens.'
                       : 'Nenhum resultado.'}
                   </p>
                 ) : (

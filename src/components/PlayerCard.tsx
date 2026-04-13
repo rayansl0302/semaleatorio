@@ -1,8 +1,14 @@
 import type { UserProfile } from '../types/models'
-import { Copy, MessageCircle, ShieldAlert, Star } from '../lib/icons'
+import { Copy, MessageCircle, Send, ShieldAlert, Star } from '../lib/icons'
+import { openMessagesDockWithPeer } from '../lib/messageDock'
 import { isPremiumActive } from '../lib/plan'
 import { hasSemiAleatorioSeal } from '../lib/seal'
-import { STATUS_LABELS } from '../lib/constants'
+import {
+  STATUS_LABELS,
+  formatEloDisplay,
+  playerTagLabel,
+  roleLabel,
+} from '../lib/constants'
 import { eloIconSrc } from '../lib/lolAssets'
 import { LolEloIcon, LolRoleIcon } from './LolIcons'
 
@@ -13,24 +19,27 @@ const statusColors: Record<string, string> = {
 }
 
 function EloBadge({ elo }: { elo: string | undefined | null }) {
-  const label = elo?.trim() ? elo.trim() : 'UNRANKED'
-  const hasIcon = Boolean(eloIconSrc(label))
+  const raw = elo?.trim() ? elo.trim() : 'UNRANKED'
+  const shown = formatEloDisplay(raw)
+  const hasIcon = Boolean(eloIconSrc(raw))
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-md bg-[#1a2332] px-2 py-0.5 text-xs font-semibold capitalize text-slate-200 ring-1 ring-white/10"
-      title={label}
+      className="inline-flex items-center gap-1.5 rounded-md bg-[#1a2332] px-2 py-0.5 text-xs font-semibold text-slate-200 ring-1 ring-white/10"
+      title={shown}
     >
-      <LolEloIcon elo={label} className="h-5 w-5" />
+      <LolEloIcon elo={raw} className="h-5 w-5" />
       {!hasIcon && (
         <span className="h-2 w-2 shrink-0 rounded-full bg-primary/80" aria-hidden />
       )}
-      {label}
+      {shown}
     </span>
   )
 }
 
 type Props = {
   player: UserProfile
+  /** UID do utilizador autenticado — para mostrar «Mensagem» no mural. */
+  viewerUid?: string
   onCall: () => void
   onCopy: () => void
   onFavorite?: () => void
@@ -42,6 +51,7 @@ type Props = {
 
 export function PlayerCard({
   player,
+  viewerUid,
   onCall,
   onCopy,
   onFavorite,
@@ -109,7 +119,7 @@ export function PlayerCard({
                 className="inline-flex items-center gap-1 rounded-md bg-white/5 px-1.5 py-0.5 font-medium text-slate-200"
               >
                 <LolRoleIcon role={r} className="h-4 w-4" />
-                {r}
+                {roleLabel(r)}
               </span>
             ))}
           </span>
@@ -123,7 +133,7 @@ export function PlayerCard({
               key={t}
               className="rounded-md bg-white/5 px-2 py-0.5 text-xs text-slate-300"
             >
-              {t}
+              {playerTagLabel(t)}
             </span>
           ))}
         </div>
@@ -165,6 +175,16 @@ export function PlayerCard({
           <MessageCircle className="h-4 w-4 shrink-0" aria-hidden />
           Chamar
         </button>
+        {viewerUid && !isSeed && viewerUid !== player.uid && (
+          <button
+            type="button"
+            onClick={() => openMessagesDockWithPeer(player.uid)}
+            className="flex flex-1 min-w-[100px] items-center justify-center gap-1.5 rounded-lg border border-secondary/40 bg-secondary/15 px-3 py-2 text-sm font-medium text-blue-100 hover:bg-secondary/25"
+          >
+            <Send className="h-4 w-4 shrink-0" aria-hidden />
+            Mensagem
+          </button>
+        )}
         {onFavorite && !isSeed && (
           <button
             type="button"

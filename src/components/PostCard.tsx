@@ -1,25 +1,32 @@
-import { get } from 'firebase/database'
+import { getDoc } from 'firebase/firestore'
 import { useEffect, useState } from 'react'
-import { rtdb } from '../firebase/config'
-import { normalizeUserFromRtdb, userProfileRef } from '../lib/rtdbUserProfile'
+import { db } from '../firebase/config'
+import { normalizeUserFromFirestore, userProfileDoc } from '../lib/firestoreUserProfile'
+import { Send } from '../lib/icons'
+import { openMessagesDockWithPeer } from '../lib/messageDock'
 import { LolEloIcon, LolRoleIcon } from './LolIcons'
-import { QUEUE_LABELS } from '../lib/constants'
+import {
+  QUEUE_LABELS,
+  formatEloDisplay,
+  roleLabel,
+} from '../lib/constants'
 import type { PostDoc, UserProfile } from '../types/models'
 
 type Props = {
   post: PostDoc
   onAuthorClick?: (uid: string) => void
+  viewerUid?: string | null
 }
 
-export function PostCard({ post, onAuthorClick }: Props) {
+export function PostCard({ post, onAuthorClick, viewerUid }: Props) {
   const [author, setAuthor] = useState<UserProfile | null>(null)
 
   useEffect(() => {
-    if (!rtdb || !post.uid) return
+    if (!db || !post.uid) return
     let cancelled = false
-    get(userProfileRef(rtdb, post.uid)).then((snap) => {
+    getDoc(userProfileDoc(db, post.uid)).then((snap) => {
       if (cancelled || !snap.exists()) return
-      const p = normalizeUserFromRtdb(snap.val(), post.uid)
+      const p = normalizeUserFromFirestore(snap.data(), post.uid)
       if (p) setAuthor(p)
     })
     return () => {
@@ -47,25 +54,37 @@ export function PostCard({ post, onAuthorClick }: Props) {
       <div className="mt-3 flex flex-wrap gap-2 text-xs">
         <span className="inline-flex items-center gap-1.5 rounded-md bg-white/5 px-2 py-1 text-slate-300">
           <LolEloIcon elo={post.eloMin ?? 'UNRANKED'} className="h-5 w-5" />
-          Elo mín: {post.eloMin ?? 'UNRANKED'}
+          Elo mín.: {formatEloDisplay(post.eloMin)}
         </span>
         <span className="inline-flex items-center gap-1.5 rounded-md bg-white/5 px-2 py-1 text-slate-300">
-          <LolRoleIcon role={post.role} className="h-4 w-4" />
-          Rota: {post.role}
+          <LolRoleIcon role={post.role} className="h-5 w-5" />
+          {roleLabel(post.role)}
         </span>
-        <span className="rounded-md bg-accent/20 px-2 py-1 font-medium text-amber-200">
+        <span className="rounded-md bg-primary/15 px-2 py-1 text-primary">
           {QUEUE_LABELS[post.queueType] ?? post.queueType}
         </span>
       </div>
-      {author && (
-        <button
-          type="button"
-          onClick={() => onAuthorClick?.(post.uid)}
-          className="mt-3 text-left text-sm text-secondary hover:underline"
-        >
-          {author.nickname}#{author.tag}
-        </button>
-      )}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {author && (
+          <button
+            type="button"
+            onClick={() => onAuthorClick?.(post.uid)}
+            className="text-left text-xs text-slate-500 underline-offset-2 hover:text-primary hover:underline"
+          >
+            Por {author.nickname}#{author.tag}
+          </button>
+        )}
+        {viewerUid && viewerUid !== post.uid && (
+          <button
+            type="button"
+            onClick={() => openMessagesDockWithPeer(post.uid)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-secondary/40 bg-secondary/15 px-2.5 py-1.5 text-xs font-medium text-blue-100 transition hover:bg-secondary/25"
+          >
+            <Send className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            Mensagem
+          </button>
+        )}
+      </div>
     </article>
   )
 }

@@ -1,35 +1,35 @@
 import {
-  limitToLast,
-  onValue,
-  orderByChild,
+  collection,
+  limit,
+  onSnapshot,
+  orderBy,
   query,
-  ref,
-} from 'firebase/database'
-import { Timestamp } from 'firebase/firestore'
+} from 'firebase/firestore'
 import { useEffect, useState } from 'react'
-import { rtdb } from '../firebase/config'
+import { db } from '../firebase/config'
 import type { PostDoc } from '../types/models'
+import type { QueueType } from '../types/models'
 
 export function usePosts(max = 50) {
   const [posts, setPosts] = useState<PostDoc[]>([])
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!rtdb) {
+    if (!db) {
       setPosts([])
       return
     }
     const q = query(
-      ref(rtdb, 'posts'),
-      orderByChild('createdAt'),
-      limitToLast(max),
+      collection(db, 'posts'),
+      orderBy('createdAt', 'desc'),
+      limit(max),
     )
-    const unsub = onValue(
+    const unsub = onSnapshot(
       q,
       (snap) => {
         const list: PostDoc[] = []
-        snap.forEach((child) => {
-          const data = child.val() as Record<string, unknown>
+        snap.forEach((d) => {
+          const data = d.data() as Record<string, unknown>
           const eloMin =
             typeof data.eloMin === 'string' && data.eloMin.trim() !== ''
               ? data.eloMin.trim()
@@ -42,14 +42,16 @@ export function usePosts(max = 50) {
             data.queueType === 'duo' ||
             data.queueType === 'flex' ||
             data.queueType === 'clash'
-              ? data.queueType
+              ? (data.queueType as QueueType)
               : 'duo'
           const createdAt =
-            typeof data.createdAt === 'number' && Number.isFinite(data.createdAt)
-              ? Timestamp.fromMillis(data.createdAt)
+            data.createdAt &&
+            typeof data.createdAt === 'object' &&
+            'toMillis' in (data.createdAt as object)
+              ? (data.createdAt as PostDoc['createdAt'])
               : null
           list.push({
-            id: child.key ?? '',
+            id: d.id,
             uid: typeof data.uid === 'string' ? data.uid : '',
             title: typeof data.title === 'string' ? data.title : 'Post',
             description:
@@ -60,10 +62,6 @@ export function usePosts(max = 50) {
             createdAt,
           })
         })
-        list.sort(
-          (a, b) =>
-            (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0),
-        )
         setPosts(list)
         setError(null)
       },

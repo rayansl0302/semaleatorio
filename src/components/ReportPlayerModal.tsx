@@ -1,7 +1,7 @@
-import { push, ref, serverTimestamp, set } from 'firebase/database'
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore'
 import { useState } from 'react'
 import { useToast } from '../contexts/ToastContext'
-import { rtdb } from '../firebase/config'
+import { db } from '../firebase/config'
 import type { UserProfile } from '../types/models'
 
 const REASONS = [
@@ -27,12 +27,11 @@ export function ReportPlayerModal({ open, target, fromUid, onClose }: Props) {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!rtdb || !target || target.uid === fromUid) return
+    if (!db || !target || target.uid === fromUid) return
     setSending(true)
     setMsg(null)
     try {
-      const newRef = push(ref(rtdb, 'reports'))
-      await set(newRef, {
+      await addDoc(collection(db, 'reports'), {
         fromUid,
         toUid: target.uid,
         reason,
@@ -64,49 +63,48 @@ export function ReportPlayerModal({ open, target, fromUid, onClose }: Props) {
         className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl"
       >
         <h2 className="text-lg font-semibold text-white">
-          Reportar {target.nickname}
+          Denunciar {target.nickname}
         </h2>
         <p className="mt-1 text-xs text-slate-500">
-          Denúncias falsas podem resultar em penalidade na conta.
+          A moderação analisa cada caso. Não abuses desta ferramenta.
         </p>
         {msg && <p className="mt-2 text-sm text-primary">{msg}</p>}
-        <div className="mt-4 space-y-2">
-          {REASONS.map((r) => (
-            <label
-              key={r.id}
-              className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-slate-300 has-[:checked]:border-primary/50 has-[:checked]:bg-primary/5"
-            >
-              <input
-                type="radio"
-                name="reason"
-                value={r.id}
-                checked={reason === r.id}
-                onChange={() => setReason(r.id)}
-                className="text-primary"
-              />
-              {r.label}
-            </label>
-          ))}
-        </div>
-        <textarea
-          value={detail}
-          onChange={(e) => setDetail(e.target.value)}
-          placeholder="Detalhes (opcional)"
-          rows={3}
-          className="mt-3 w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-white"
-        />
-        <div className="mt-4 flex gap-2">
+        <label className="mt-4 block text-sm text-slate-300">
+          Motivo
+          <select
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-border bg-bg px-3 py-2 text-white"
+          >
+            {REASONS.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="mt-3 block text-sm text-slate-300">
+          Detalhes (opcional, até 500 caracteres)
+          <textarea
+            value={detail}
+            onChange={(e) => setDetail(e.target.value)}
+            rows={3}
+            maxLength={500}
+            className="mt-1 w-full rounded-lg border border-border bg-bg px-3 py-2 text-white"
+          />
+        </label>
+        <div className="mt-6 flex gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 rounded-lg border border-border py-2 text-sm text-slate-400"
+            className="flex-1 rounded-lg border border-border py-2 text-sm text-slate-300"
           >
             Cancelar
           </button>
           <button
             type="submit"
             disabled={sending}
-            className="flex-1 rounded-lg bg-amber-600 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            className="flex-1 rounded-lg bg-secondary py-2 text-sm font-semibold text-white disabled:opacity-40"
           >
             {sending ? 'Enviando…' : 'Enviar denúncia'}
           </button>

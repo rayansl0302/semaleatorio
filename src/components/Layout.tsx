@@ -7,9 +7,11 @@ import {
   useLocation,
   useNavigate,
 } from 'react-router-dom'
-import { BrandLogo } from './BrandLogo'
+import { BrandLogo, BRAND_LOGO_TEXT_HEADER_IMG_CLASS } from './BrandLogo'
+import { PlayersMessagesDock } from './PlayersMessagesDock'
 import { RiotLegalNotice } from './RiotLegalNotice'
 import { useAuth } from '../contexts/AuthContext'
+import { db } from '../firebase/config'
 import { useToast } from '../contexts/ToastContext'
 import { useFcmRegistration } from '../hooks/useFcmRegistration'
 import { Home, LogOut, MessageCircle, User, Users } from '../lib/icons'
@@ -49,8 +51,8 @@ export function Layout() {
   return (
     <div className="flex min-h-dvh flex-col bg-bg text-slate-200">
       <header className="sticky top-0 z-40 border-b border-border bg-bg/95 backdrop-blur">
-        <div className="mx-auto max-w-7xl px-4 py-1 sm:py-1.5">
-          <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
+        <div className="mx-auto max-w-7xl px-4 py-2 sm:py-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 sm:gap-x-4">
             <Link
               to="/app"
               className="block shrink-0 rounded-md p-0 leading-none ring-offset-2 ring-offset-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
@@ -58,7 +60,7 @@ export function Layout() {
               <BrandLogo
                 variant="text"
                 className="leading-none"
-                imgClassName="h-[4.25rem] w-auto max-w-[min(100vw-8rem,26rem)] object-left sm:h-[5rem] md:h-[5.5rem] lg:h-24"
+                imgClassName={BRAND_LOGO_TEXT_HEADER_IMG_CLASS}
                 loading="eager"
               />
             </Link>
@@ -136,9 +138,12 @@ export function Layout() {
           </div>
         </div>
       </header>
-      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 py-6">
+      <main
+        className={`mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 py-6 ${user && db ? 'pb-24 sm:pb-10' : ''}`}
+      >
         <Outlet />
       </main>
+      {user && db ? <PlayersMessagesDock /> : null}
       <footer className="space-y-3 border-t border-border py-6 text-center text-xs text-slate-600">
         <p>SemAleatório — comunidade brasileira</p>
         <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-slate-500">

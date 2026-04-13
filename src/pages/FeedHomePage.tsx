@@ -4,8 +4,9 @@ import { Link, useNavigate } from 'react-router-dom'
 import { PostCard } from '../components/PostCard'
 import { PostComposer } from '../components/PostComposer'
 import { LolEloIcon } from '../components/LolIcons'
+import { FirebaseConfigNotice } from '../components/FirebaseConfigNotice'
 import { useAuth } from '../contexts/AuthContext'
-import { rtdb } from '../firebase/config'
+import { firebaseFeedBlockedReason } from '../firebase/config'
 import { useAppConfig } from '../hooks/useAppConfig'
 import { usePlayers } from '../hooks/usePlayers'
 import { usePosts } from '../hooks/usePosts'
@@ -38,26 +39,17 @@ export function FeedHomePage() {
       .map((x) => x.p)
   }, [players])
 
-  if (!rtdb) {
-    return (
-      <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-amber-100">
-        <h1 className="text-lg font-semibold">Configure o Firebase</h1>
-        <p className="mt-2 text-sm opacity-90">
-          Preencha o <code className="rounded bg-black/30 px-1">.env</code>, incluindo{' '}
-          <code className="rounded bg-black/30 px-1">VITE_FIREBASE_DATABASE_URL</code>, para ver
-          o feed e o mural.
-        </p>
-      </div>
-    )
+  if (firebaseFeedBlockedReason()) {
+    return <FirebaseConfigNotice />
   }
 
   return (
     <>
       <Helmet>
-        <title>Início — Feed LFG · SemAleatório</title>
+        <title>Início — Busca de time e dupla · SemAleatório</title>
         <meta
           name="description"
-          content="Posts LFG em tempo real: duo, flex e Clash BR. SemAleatório."
+          content="Pedidos de duo, flex e Clash em tempo real. Encontre parceiros no Brasil — SemAleatório."
         />
       </Helmet>
 
@@ -140,11 +132,11 @@ export function FeedHomePage() {
               Início
             </p>
             <h1 className="mt-2 text-2xl font-bold text-white sm:text-3xl">
-              Feed LFG
+              Busca de time e dupla
             </h1>
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-400">
-              Publique ou responda pedidos de duo, flex e Clash. Quando quiser caçar
-              jogador na lista ao vivo, abra o mural.
+              Publique ou responda pedidos de parceiro para duo, flex e Clash. Para ver
+              quem está disponível na hora, abra o mural de jogadores.
             </p>
             <div className="mt-5 flex flex-wrap items-center gap-3">
               <Link
@@ -186,7 +178,7 @@ export function FeedHomePage() {
                   to="/entrar?redirect=/app"
                   className="font-semibold text-primary underline-offset-2 hover:underline"
                 >
-                  Entre
+                  Faça login
                 </Link>{' '}
                 com Google ou e-mail para criar posts no feed.
               </div>
@@ -203,6 +195,7 @@ export function FeedHomePage() {
                 <PostCard
                   key={post.id}
                   post={post}
+                  viewerUid={user?.uid}
                   onAuthorClick={(uid) => navigate(`/app/perfil?u=${uid}`)}
                 />
               ))}
@@ -213,7 +206,7 @@ export function FeedHomePage() {
                 <Link to="/app/jogadores" className="text-primary hover:underline">
                   jogadores
                 </Link>{' '}
-                para ver quem está LFG.
+                para ver quem está procurando time ou dupla.
               </p>
             )}
           </section>

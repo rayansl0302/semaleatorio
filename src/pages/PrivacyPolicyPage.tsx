@@ -31,7 +31,7 @@ export function PrivacyPolicyPage() {
         <li>
           <strong className="text-slate-200">Dados de perfil e atividade no jogo:</strong> apelido (nick), tag
           da Riot, região, elo e informações que você preenche voluntariamente (bio, rotas preferidas, status
-          LFG, posts no mural, avaliações recebidas ou enviadas, favoritos e dados semelhantes exibidos na
+          disponibilidade para jogar, posts no mural, avaliações recebidas ou enviadas, favoritos e dados semelhantes exibidos na
           comunidade).
         </li>
         <li>
@@ -60,7 +60,7 @@ export function PrivacyPolicyPage() {
       <ul className="list-disc space-y-2 pl-5">
         <li>
           <strong className="text-slate-200">Prestação do serviço e execução de contrato:</strong> criar e
-          manter sua conta, exibir perfil e listagens, viabilizar posts LFG, mensagens, reputação e recursos
+          manter sua conta, exibir perfil e listagens, viabilizar pedidos no feed e mural, mensagens, reputação e recursos
           pagos contratados por você.
         </li>
         <li>

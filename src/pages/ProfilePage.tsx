@@ -1,5 +1,11 @@
-import { Timestamp } from 'firebase/firestore'
-import { get } from 'firebase/database'
+import {
+  collection,
+  getDoc,
+  onSnapshot,
+  query,
+  Timestamp,
+  where,
+} from 'firebase/firestore'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Helmet } from 'react-helmet-async'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -7,12 +13,29 @@ import { LolEloIcon, LolRoleIcon } from '../components/LolIcons'
 import { RateUserModal } from '../components/RateUserModal'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
-import { vercelApiCall, vercelApiConfigured } from '../firebase/api'
-import { rtdb } from '../firebase/config'
-import { ELO_ORDER, PLAYER_TAG_OPTIONS, QUEUE_LABELS, ROLES } from '../lib/constants'
+import { db } from '../firebase/config'
+import {
+  ELO_ORDER,
+  PLAYER_TAG_OPTIONS,
+  QUEUE_LABELS,
+  ROLES,
+  STATUS_LABELS,
+  eloTierLabel,
+  formatEloDisplay,
+  playerTagLabel,
+  roleLabel,
+} from '../lib/constants'
 import { isPremiumActive } from '../lib/plan'
 import { profileSlugFromNick } from '../lib/profileSlug'
-import { normalizeUserFromRtdb, userProfileRef } from '../lib/rtdbUserProfile'
+import {
+  normalizeUserFromFirestore,
+  userProfileDoc,
+} from '../lib/firestoreUserProfile'
+import {
+  aggregateFromOverallValues,
+  mergeRatingIntoProfile,
+  type RatingAgg,
+} from '../lib/ratingsFirestore'
 import { getPublicSiteUrl } from '../lib/siteUrl'
 import { hasSemiAleatorioSeal } from '../lib/seal'
 import { formatLastSeenAgo, isRecentlyActive } from '../lib/timeAgoFirestore'
@@ -26,15 +49,33 @@ function eloTierForSelect(elo: string | undefined): (typeof ELO_ORDER)[number] {
     : 'UNRANKED'
 }
 
+type ProfileEditForm = {
+  elo: string
+  status: PlayerStatus
+  playingNow: boolean
+  roles: string[]
+  queueTypes: QueueType[]
+  playerTags: string[]
+  bio: string
+}
+
+function profileToForm(p: UserProfile): ProfileEditForm {
+  return {
+    elo: p.elo ?? 'UNRANKED',
+    status: p.status ?? 'LFG',
+    playingNow: !!p.playingNow,
+    roles: [...(p.roles ?? [])],
+    queueTypes:
+      p.queueTypes && p.queueTypes.length > 0
+        ? [...p.queueTypes]
+        : (['duo', 'flex', 'clash'] as QueueType[]),
+    playerTags: [...(p.playerTags ?? [])],
+    bio: p.bio ?? '',
+  }
+}
+
 export function ProfilePage() {
-  const {
-    user,
-    profile,
-    loading,
-    refreshProfile,
-    updateLocalProfile,
-    persistProfile,
-  } = useAuth()
+  const { user, profile, loading, refreshProfile, persistProfile } = useAuth()
   const toast = useToast()
   const [params, setParams] = useSearchParams()
   const viewUid = params.get('u')
@@ -44,26 +85,45 @@ export function ProfilePage() {
   const [riotTag, setRiotTag] = useState('')
   const [linkRiotLoading, setLinkRiotLoading] = useState(false)
   const [riotMsg, setRiotMsg] = useState<string | null>(null)
-  const [payLoading, setPayLoading] = useState<string | null>(null)
-  const [payMsg, setPayMsg] = useState<string | null>(null)
+  const [ratingAgg, setRatingAgg] = useState<RatingAgg | null>(null)
   const [copiedKey, setCopiedKey] = useState('')
-  /** Evita que `useEffect` do perfil apague o que estás a escrever em nick/tag Riot. */
+  /** Evita que o useEffect do perfil apague nick/tag Riot enquanto você digita. */
   const riotInputFocusRef = useRef({ nick: false, tag: false })
+  const [editForm, setEditForm] = useState<ProfileEditForm | null>(null)
+  const [editDirty, setEditDirty] = useState(false)
+  const lastEditProfileUid = useRef<string | null>(null)
 
   const isOwn = !viewUid || viewUid === user?.uid
   const display = isOwn ? profile : viewProfile
 
   useEffect(() => {
-    if (!viewUid || !rtdb || viewUid === user?.uid) {
+    if (!db || !display?.uid) {
+      setRatingAgg(null)
+      return
+    }
+    const q = query(collection(db, 'ratings'), where('toUid', '==', display.uid))
+    const unsub = onSnapshot(q, (snap) => {
+      const vals: number[] = []
+      snap.forEach((d) => {
+        const ov = (d.data() as { overall?: number }).overall
+        if (typeof ov === 'number') vals.push(ov)
+      })
+      setRatingAgg(aggregateFromOverallValues(vals))
+    })
+    return () => unsub()
+  }, [display?.uid])
+
+  useEffect(() => {
+    if (!viewUid || !db || viewUid === user?.uid) {
       setViewProfile(null)
       return
     }
-    get(userProfileRef(rtdb, viewUid)).then((snap) => {
+    getDoc(userProfileDoc(db, viewUid)).then((snap) => {
       if (!snap.exists()) {
         setViewProfile(null)
         return
       }
-      const p = normalizeUserFromRtdb(snap.val(), viewUid)
+      const p = normalizeUserFromFirestore(snap.data(), viewUid)
       if (!p || p.shadowBanned) {
         setViewProfile(null)
         return
@@ -71,6 +131,19 @@ export function ProfilePage() {
       setViewProfile(p)
     })
   }, [viewUid, user?.uid])
+
+  useEffect(() => {
+    if (!profile || !isOwn) {
+      setEditForm(null)
+      lastEditProfileUid.current = null
+      return
+    }
+    const id = profile.uid ?? ''
+    if (lastEditProfileUid.current === id) return
+    lastEditProfileUid.current = id
+    setEditForm(profileToForm(profile))
+    setEditDirty(false)
+  }, [profile?.uid, isOwn])
 
   useEffect(() => {
     if (!profile) return
@@ -90,37 +163,18 @@ export function ProfilePage() {
     next.delete('state')
     setParams(next, { replace: true })
     setRiotMsg(
-      'Login Riot no browser (SSO) está desativado. Usa a confirmação manual abaixo.',
+      'Login Riot no navegador (SSO) está desativado. Use a confirmação manual abaixo.',
     )
   }, [params, setParams])
 
-  const seal = display && (hasSemiAleatorioSeal(display) || display.semiAleatorio)
+  const displayMerged = display
+    ? mergeRatingIntoProfile(display, ratingAgg ?? undefined)
+    : null
+  const seal =
+    displayMerged &&
+    (hasSemiAleatorioSeal(displayMerged) || displayMerged.semiAleatorio)
 
   const statsUnlocked = isPremiumActive(profile)
-
-  async function payAsaas(product: 'premium_monthly' | 'boost_1h' | 'boost_3h') {
-    if (!vercelApiConfigured() || !user) return
-    setPayLoading(product)
-    setPayMsg(null)
-    try {
-      const data = await vercelApiCall<{
-        paymentId?: string
-        invoiceUrl?: string | null
-      }>('createAsaasCheckout', { product })
-      if (data?.invoiceUrl) {
-        window.open(data.invoiceUrl, '_blank', 'noopener,noreferrer')
-        setPayMsg('Abra o link de pagamento na nova aba para concluir.')
-      } else {
-        setPayMsg('Pagamento iniciado. Verifique seu e-mail se precisar do boleto ou fatura.')
-      }
-    } catch (e) {
-      setPayMsg(
-        e instanceof Error ? e.message : 'Erro ao iniciar pagamento. Tente de novo.',
-      )
-    } finally {
-      setPayLoading(null)
-    }
-  }
 
   const mockStats = useMemo(
     () => ({
@@ -144,56 +198,69 @@ export function ProfilePage() {
     }
   }
 
-  async function saveField<K extends keyof UserProfile>(
-    key: K,
-    value: UserProfile[K],
-  ) {
-    if (!user || !isOwn) return
-    const prev = profile
-    updateLocalProfile({ [key]: value } as Partial<UserProfile>)
+  const form =
+    editForm ?? (isOwn && profile ? profileToForm(profile) : null)
+
+  async function saveEditForm() {
+    if (!user || !isOwn || !form) return
     try {
-      await persistProfile(user.uid, { [key]: value } as Partial<UserProfile>)
+      await persistProfile(user.uid, {
+        elo: form.elo,
+        status: form.status,
+        playingNow: form.playingNow,
+        roles: form.roles as UserProfile['roles'],
+        queueTypes: form.queueTypes,
+        playerTags: form.playerTags,
+        bio: form.bio,
+      })
+      setEditDirty(false)
+      toast.success('Alterações salvas.')
     } catch (e) {
-      console.error('[Perfil] persistProfile falhou:', key, e)
-      toast.error('Não foi possível guardar. Tenta de novo.')
-      if (prev) {
-        updateLocalProfile({ [key]: prev[key] } as Partial<UserProfile>)
-      }
+      console.error('[Perfil] guardar rascunho:', e)
+      toast.error(
+        e instanceof Error ? e.message : 'Não foi possível salvar. Tente novamente.',
+      )
     }
+  }
+
+  function discardEditForm() {
+    if (!profile) return
+    setEditForm(profileToForm(profile))
+    setEditDirty(false)
+    toast.info('Alterações descartadas.')
   }
 
   async function confirmRiotId() {
     if (!user) {
-      setRiotMsg('Inicia sessão para ligar o Riot ID.')
+      setRiotMsg('Faça login para vincular o Riot ID.')
       return
     }
     const gn = riotNick.trim()
     const tag = riotTag.trim().replace(/^#/, '')
     if (!gn || !tag) {
-      setRiotMsg('Preenche o nome de invocador e a tag (ex.: BR1).')
-      return
-    }
-    if (!rtdb) {
-      setRiotMsg('Realtime Database não configurada (VITE_FIREBASE_DATABASE_URL).')
+      setRiotMsg('Preencha o nome de invocador e a tag (ex.: BR1).')
       return
     }
     setLinkRiotLoading(true)
     setRiotMsg(null)
     try {
-      const profileSlug = profileSlugFromNick(gn, tag)
+      if (!db) {
+        setRiotMsg('Firestore não está configurado (variáveis VITE_FIREBASE_* no .env).')
+        return
+      }
       await persistProfile(user.uid, {
         nickname: gn,
         tag,
-        profileSlug,
+        profileSlug: profileSlugFromNick(gn, tag),
       })
       await refreshProfile()
       riotInputFocusRef.current = { nick: false, tag: false }
-      setRiotMsg(
-        'Nick e tag guardados no perfil (Realtime Database). O elo continua o que definires no perfil; com login Riot (SSO) aprovado no painel, ligaremos a conta oficialmente.',
-      )
-      toast.success('Riot ID guardado no perfil.')
+      setRiotMsg(`Nick e tag salvos (${gn}#${tag}).`)
+      toast.success('Perfil atualizado.')
     } catch (e) {
-      setRiotMsg(e instanceof Error ? e.message : 'Não foi possível guardar.')
+      const m = e instanceof Error ? e.message : 'Não foi possível confirmar.'
+      setRiotMsg(m)
+      toast.error(m)
     } finally {
       setLinkRiotLoading(false)
     }
@@ -210,7 +277,7 @@ export function ProfilePage() {
           to="/entrar?redirect=/app/perfil"
           className="font-medium text-primary underline-offset-2 hover:underline"
         >
-          Entre
+          Faça login
         </Link>{' '}
         com Google ou e-mail para editar seu perfil.
       </p>
@@ -232,14 +299,11 @@ export function ProfilePage() {
   if (!display) return null
 
   const statusPublicLabel =
-    display.status === 'LFG'
-      ? 'LFG · procurando duo/time'
-      : display.status === 'PLAYING'
-        ? 'Em partida'
-        : 'Offline'
+    STATUS_LABELS[display.status ?? 'OFFLINE'] ?? display.status ?? 'Offline'
 
   const profileUid = display.uid ?? viewUid ?? ''
   const avatarInitial = (display.nickname?.[0] ?? '?').toUpperCase()
+  const headerElo = isOwn && form ? form.elo : display.elo
   const seenAgo = formatLastSeenAgo(display.lastOnline)
   const seenLive = isRecentlyActive(display.lastOnline)
 
@@ -251,7 +315,7 @@ export function ProfilePage() {
         </title>
         <meta
           name="description"
-          content={`${display.elo ?? 'UNRANKED'} · ${statusPublicLabel} no SemAleatório (BR).`}
+          content={`${formatEloDisplay(display.elo)} · ${statusPublicLabel} no SemAleatório (BR).`}
         />
       </Helmet>
 
@@ -261,7 +325,7 @@ export function ProfilePage() {
             to="/app"
             className="rounded-lg bg-white/5 px-4 py-2 text-sm font-medium text-slate-200 ring-1 ring-white/10 transition hover:bg-white/10 hover:text-white"
           >
-            Feed LFG
+            Feed · busca de time
           </Link>
           <Link
             to="/app/jogadores"
@@ -307,8 +371,10 @@ export function ProfilePage() {
               </h1>
               <div className="mt-3 flex flex-wrap items-center gap-3">
                 <span className="inline-flex items-center gap-2 rounded-full bg-bg/80 px-3 py-1 ring-1 ring-border">
-                  <LolEloIcon elo={display.elo} className="h-8 w-8" />
-                  <span className="text-base font-semibold text-primary">{display.elo}</span>
+                  <LolEloIcon elo={headerElo} className="h-8 w-8" />
+                  <span className="text-base font-semibold text-primary">
+                    {formatEloDisplay(headerElo)}
+                  </span>
                 </span>
                 {isPremiumActive(display) && (
                   <span className="rounded-full bg-gradient-to-r from-amber-400 to-amber-600 px-3 py-1 text-xs font-bold text-black">
@@ -370,28 +436,32 @@ export function ProfilePage() {
           </div>
         )}
 
-        {isOwn && (
+        {isOwn && form && (
           <div className="relative mt-6 space-y-3 border-t border-border pt-6">
             <h2 className="text-sm font-semibold uppercase text-slate-500">
               Elo exibido
             </h2>
             <p className="text-xs leading-relaxed text-slate-500">
-              Escolhe o ranque que aparece no teu perfil e no mural. Podes mudar quando quiser; quando
-              confirmares o Riot ID com o servidor, o elo pode ser atualizado de novo pela API.
+              Ajuste e salve abaixo. O elo exibido é o do seu perfil no Firestore.
             </p>
             <label className="flex max-w-md flex-col gap-2 text-xs text-slate-500 sm:flex-row sm:items-center">
               <span className="inline-flex shrink-0 items-center gap-2 sm:min-w-[8rem]">
-                <LolEloIcon elo={display.elo} className="h-9 w-9" />
+                <LolEloIcon elo={form.elo} className="h-9 w-9" />
                 <span className="font-medium text-slate-400">Divisão</span>
               </span>
               <select
-                value={eloTierForSelect(display.elo)}
-                onChange={(e) => void saveField('elo', e.target.value)}
+                value={eloTierForSelect(form.elo)}
+                onChange={(e) => {
+                  setEditForm((f) =>
+                    f ? { ...f, elo: e.target.value } : f,
+                  )
+                  setEditDirty(true)
+                }}
                 className="min-w-0 flex-1 rounded-lg border border-border bg-bg px-3 py-2 text-sm font-medium text-white"
               >
-                {ELO_ORDER.map((elo) => (
-                  <option key={elo} value={elo}>
-                    {elo}
+                {ELO_ORDER.map((eloTier) => (
+                  <option key={eloTier} value={eloTier}>
+                    {eloTierLabel(eloTier)}
                   </option>
                 ))}
               </select>
@@ -431,7 +501,7 @@ export function ProfilePage() {
                       className="inline-flex items-center gap-1.5 rounded-lg bg-white/5 px-2.5 py-1 text-xs font-medium text-slate-300"
                     >
                       <LolRoleIcon role={r} className="h-4 w-4" />
-                      {r}
+                      {roleLabel(r)}
                     </span>
                   ))}
                 </div>
@@ -465,7 +535,7 @@ export function ProfilePage() {
                       key={t}
                       className="rounded-lg bg-primary/20 px-2.5 py-1 text-xs font-medium text-primary ring-1 ring-primary/35"
                     >
-                      {t}
+                      {playerTagLabel(t)}
                     </span>
                   ))}
                 </div>
@@ -482,17 +552,31 @@ export function ProfilePage() {
             <h2 className="text-sm font-semibold uppercase text-slate-500">
               Conta Riot
             </h2>
-            <p className="text-sm text-slate-400">
-              {profile?.riotPuuid
-                ? `Ligado (SSO): ${profile.nickname ?? '?'}#${profile.tag ?? '?'}`
-                : 'Confirma o teu Riot ID abaixo — os dados ficam só no Realtime Database. Sem backend: não há validação com a API da Riot até o login oficial (SSO) estar aprovado.'}
-            </p>
-            <p className="text-xs leading-relaxed text-slate-500">
-              O backend do SemAleatório fica reservado a pagamentos (Asaas) e, quando aprovado, ao
-              login Riot (SSO). O elo no perfil ajustas manualmente nas opções acima.
-            </p>
+            {profile?.riotPuuid ? (
+              <p className="text-sm text-slate-400">
+                Conta ligada: {profile.nickname ?? '?'}#{profile.tag ?? '?'}
+              </p>
+            ) : null}
+
+            <div className="rounded-xl border border-dashed border-primary/35 bg-primary/[0.06] p-4">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-primary">
+                Em breve
+              </p>
+              <p className="mt-2 text-sm text-slate-400">
+                Login oficial com a Riot Games para vincular e validar seu invocador no app.
+              </p>
+              <button
+                type="button"
+                disabled
+                className="mt-3 inline-flex cursor-not-allowed items-center justify-center rounded-lg bg-secondary/40 px-4 py-2.5 text-sm font-semibold text-slate-500 ring-1 ring-white/10"
+                title="Disponível em breve"
+              >
+                Conectar conta Riot
+              </button>
+            </div>
+
             <p className="text-xs font-medium uppercase tracking-wide text-slate-600">
-              Confirmar Riot ID
+              Nick e tag no perfil
             </p>
             <div className="flex max-w-md flex-col gap-3 sm:flex-row sm:items-end">
               <label className="block flex-1 text-xs text-slate-500">
@@ -534,7 +618,7 @@ export function ProfilePage() {
                 onClick={() => void confirmRiotId()}
                 className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-black disabled:opacity-50"
               >
-                {linkRiotLoading ? 'A confirmar…' : 'Confirmar Riot ID'}
+                {linkRiotLoading ? 'Confirmando…' : 'Confirmar Riot ID'}
               </button>
             </div>
             {riotMsg ? (
@@ -542,14 +626,10 @@ export function ProfilePage() {
                 {riotMsg}
               </p>
             ) : null}
-            <p className="text-xs text-slate-600">
-              Usa o mesmo nick e tag que no cliente da Riot (ex.: Faker#KR1) para o perfil público
-              bater certo com quem te procura.
-            </p>
           </div>
         )}
 
-        {isOwn && (
+        {isOwn && form && (
           <>
             <div className="mt-6 space-y-3 border-t border-border pt-6">
               <h2 className="text-sm font-semibold uppercase text-slate-500">
@@ -560,28 +640,30 @@ export function ProfilePage() {
                   <button
                     key={s}
                     type="button"
-                    onClick={() => void saveField('status', s)}
+                    onClick={() => {
+                      setEditForm((f) => (f ? { ...f, status: s } : f))
+                      setEditDirty(true)
+                    }}
                     className={`rounded-lg px-3 py-2 text-sm font-medium ${
-                      display.status === s
+                      form.status === s
                         ? 'bg-accent text-black'
                         : 'bg-white/5 text-slate-300'
                     }`}
                   >
-                    {s === 'LFG'
-                      ? 'LFG'
-                      : s === 'PLAYING'
-                        ? 'Em partida'
-                        : 'Offline'}
+                    {STATUS_LABELS[s]}
                   </button>
                 ))}
               </div>
               <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-300">
                 <input
                   type="checkbox"
-                  checked={!!display.playingNow}
-                  onChange={(e) =>
-                    void saveField('playingNow', e.target.checked)
-                  }
+                  checked={form.playingNow}
+                  onChange={(e) => {
+                    setEditForm((f) =>
+                      f ? { ...f, playingNow: e.target.checked } : f,
+                    )
+                    setEditDirty(true)
+                  }}
                   className="rounded border-border text-primary"
                 />
                 Indicador &quot;joga agora&quot;
@@ -594,17 +676,21 @@ export function ProfilePage() {
               </h2>
               <div className="flex flex-wrap gap-2">
                 {ROLES.map((r) => {
-                  const selected = display.roles?.includes(r)
+                  const selected = form.roles.includes(r)
                   return (
                     <button
                       key={r}
                       type="button"
                       onClick={() => {
-                        const cur = display.roles ?? []
-                        let next = [...cur]
-                        if (selected) next = next.filter((x) => x !== r)
-                        else if (next.length < 2) next.push(r)
-                        void saveField('roles', next)
+                        setEditForm((f) => {
+                          if (!f) return f
+                          const cur = f.roles
+                          let next = [...cur]
+                          if (selected) next = next.filter((x) => x !== r)
+                          else if (next.length < 2) next.push(r)
+                          return { ...f, roles: next }
+                        })
+                        setEditDirty(true)
                       }}
                       className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium ${
                         selected
@@ -613,7 +699,7 @@ export function ProfilePage() {
                       }`}
                     >
                       <LolRoleIcon role={r} className="h-4 w-4" />
-                      {r}
+                      {roleLabel(r)}
                     </button>
                   )
                 })}
@@ -626,17 +712,21 @@ export function ProfilePage() {
               </h2>
               <div className="flex flex-wrap gap-2">
                 {(['duo', 'flex', 'clash'] as QueueType[]).map((q) => {
-                  const selected = display.queueTypes?.includes(q)
+                  const selected = form.queueTypes.includes(q)
                   return (
                     <button
                       key={q}
                       type="button"
                       onClick={() => {
-                        const cur = display.queueTypes ?? []
-                        let next = [...cur]
-                        if (selected) next = next.filter((x) => x !== q)
-                        else next.push(q)
-                        void saveField('queueTypes', next)
+                        setEditForm((f) => {
+                          if (!f) return f
+                          const cur = f.queueTypes
+                          let next = [...cur]
+                          if (selected) next = next.filter((x) => x !== q)
+                          else next.push(q)
+                          return { ...f, queueTypes: next }
+                        })
+                        setEditDirty(true)
                       }}
                       className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
                         selected
@@ -657,17 +747,21 @@ export function ProfilePage() {
               </h2>
               <div className="flex flex-wrap gap-2">
                 {PLAYER_TAG_OPTIONS.map((t) => {
-                  const selected = display.playerTags?.includes(t)
+                  const selected = form.playerTags.includes(t)
                   return (
                     <button
                       key={t}
                       type="button"
                       onClick={() => {
-                        const cur = display.playerTags ?? []
-                        const next = selected
-                          ? cur.filter((x) => x !== t)
-                          : [...cur, t]
-                        void saveField('playerTags', next)
+                        setEditForm((f) => {
+                          if (!f) return f
+                          const cur = f.playerTags
+                          const next = selected
+                            ? cur.filter((x) => x !== t)
+                            : [...cur, t]
+                          return { ...f, playerTags: next }
+                        })
+                        setEditDirty(true)
                       }}
                       className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
                         selected
@@ -675,7 +769,7 @@ export function ProfilePage() {
                           : 'bg-white/5 text-slate-500 hover:bg-white/10'
                       }`}
                     >
-                      {t}
+                      {playerTagLabel(t)}
                     </button>
                   )
                 })}
@@ -685,14 +779,40 @@ export function ProfilePage() {
             <label className="mt-6 block border-t border-border pt-6 text-xs text-slate-500">
               Bio curta
               <textarea
-                value={display.bio ?? ''}
-                onChange={(e) => updateLocalProfile({ bio: e.target.value })}
-                onBlur={(e) => void saveField('bio', e.target.value)}
+                value={form.bio}
+                onChange={(e) => {
+                  setEditForm((f) =>
+                    f ? { ...f, bio: e.target.value } : f,
+                  )
+                  setEditDirty(true)
+                }}
                 rows={3}
                 maxLength={200}
                 className="mt-1 w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-white"
               />
             </label>
+
+            {editDirty ? (
+              <div className="sticky bottom-4 z-10 mt-6 flex flex-wrap items-center gap-3 rounded-xl border border-primary/40 bg-card/95 p-4 shadow-lg shadow-black/40 backdrop-blur-sm">
+                <p className="text-sm text-slate-300">
+                  Há alterações não salvas.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void saveEditForm()}
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-black"
+                >
+                  Salvar alterações
+                </button>
+                <button
+                  type="button"
+                  onClick={() => discardEditForm()}
+                  className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-slate-300 hover:bg-white/5"
+                >
+                  Descartar
+                </button>
+              </div>
+            ) : null}
 
             <div className="mt-6 rounded-xl border border-primary/25 bg-primary/[0.07] p-5 text-sm">
               <p className="font-semibold text-primary">Perfil público</p>
@@ -727,8 +847,8 @@ export function ProfilePage() {
                 </>
               ) : (
                 <p className="mt-2 text-xs leading-relaxed text-slate-500">
-                  Confirma o teu Riot ID na secção acima para gerar o endereço público em{' '}
-                  <span className="font-mono text-slate-400">/u/seu-nick</span>.
+                  Preencha nick e tag em <strong className="font-medium text-slate-400">Conta Riot</strong>{' '}
+                  para gerar o link em <span className="font-mono text-slate-400">/u/seu-nick</span>.
                 </p>
               )}
             </div>
@@ -740,58 +860,15 @@ export function ProfilePage() {
         <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">
           <h2 className="text-lg font-semibold text-white">Planos</h2>
           <p className="mt-2 text-sm text-slate-400">
-            Premium e boost com PIX, boleto ou cartão — a confirmação atualiza seu
-            plano automaticamente após o pagamento.
+            Pagamentos (Asaas, PIX, etc.) precisam de um backend seguro; por agora o plano é só
+            Firestore. Use a simulação abaixo para testar o premium no app.
           </p>
-          {payMsg && <p className="mt-2 text-sm text-primary">{payMsg}</p>}
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-xl border border-border p-4">
-              <p className="font-semibold text-white">Free</p>
-              <p className="mt-1 text-xs text-slate-500">R$ 0 — core completo</p>
-            </div>
-            <div className="rounded-xl border border-accent/40 bg-accent/5 p-4">
-              <p className="font-semibold text-amber-200">Premium</p>
-              <p className="mt-1 text-xs text-slate-500">R$ 29,90 / 30 dias</p>
-              <button
-                type="button"
-                disabled={!vercelApiConfigured() || payLoading !== null}
-                onClick={() => void payAsaas('premium_monthly')}
-                className="mt-3 w-full rounded-lg bg-accent py-2 text-sm font-semibold text-black disabled:opacity-50"
-              >
-                {payLoading === 'premium_monthly' ? 'Gerando…' : 'Pagar'}
-              </button>
-            </div>
-          </div>
-          <div className="mt-6 rounded-xl border border-primary/30 bg-primary/5 p-4">
-            <p className="text-sm font-semibold text-primary">Boost no topo</p>
-            <p className="mt-1 text-xs text-slate-500">
-              R$ 2,90 (1h) · R$ 5,90 (3h) — somam ao tempo de destaque atual.
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={!vercelApiConfigured() || payLoading !== null}
-                onClick={() => void payAsaas('boost_1h')}
-                className="rounded-lg bg-primary/20 px-3 py-2 text-xs font-semibold text-primary disabled:opacity-50"
-              >
-                {payLoading === 'boost_1h' ? '…' : 'Pagar · 1h'}
-              </button>
-              <button
-                type="button"
-                disabled={!vercelApiConfigured() || payLoading !== null}
-                onClick={() => void payAsaas('boost_3h')}
-                className="rounded-lg bg-primary/20 px-3 py-2 text-xs font-semibold text-primary disabled:opacity-50"
-              >
-                {payLoading === 'boost_3h' ? '…' : 'Pagar · 3h'}
-              </button>
-            </div>
-          </div>
           <div className="mt-4 border-t border-border pt-4">
             <p className="text-xs text-slate-500">Somente desenvolvimento local</p>
             <button
               type="button"
               onClick={async () => {
-                if (!user || !rtdb) return
+                if (!user || !db) return
                 if (profile?.plan === 'premium') {
                   await persistProfile(user.uid, {
                     plan: 'free',

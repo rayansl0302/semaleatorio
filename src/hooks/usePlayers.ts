@@ -1,9 +1,13 @@
-import { onValue, ref } from 'firebase/database'
+import { collection, onSnapshot } from 'firebase/firestore'
 import { useEffect, useMemo, useState } from 'react'
-import { rtdb } from '../firebase/config'
+import { db } from '../firebase/config'
 import { eloRank } from '../lib/constants'
-import { mergeRatingsIntoProfile } from '../lib/ratingsReceived'
-import { normalizeUserFromRtdb } from '../lib/rtdbUserProfile'
+import { normalizeUserFromFirestore } from '../lib/firestoreUserProfile'
+import {
+  fetchRatingAggregatesForUids,
+  mergeRatingIntoProfile,
+  type RatingAgg,
+} from '../lib/ratingsFirestore'
 import { isPremiumActive } from '../lib/plan'
 import type { UserProfile } from '../types/models'
 
@@ -31,56 +35,62 @@ function sortPlayers(list: UserProfile[]): UserProfile[] {
 }
 
 export function usePlayers() {
-  const [usersMap, setUsersMap] = useState<Record<string, unknown> | null>(null)
-  const [receivedMap, setReceivedMap] = useState<Record<string, unknown> | null>(null)
+  const [basePlayers, setBasePlayers] = useState<UserProfile[]>([])
+  const [aggByUid, setAggByUid] = useState<Map<string, RatingAgg>>(new Map())
   const [error, setError] = useState<string | null>(null)
-
-  const raw = useMemo(() => {
-    if (!usersMap) return []
-    const list: UserProfile[] = []
-    for (const [uid, val] of Object.entries(usersMap)) {
-      const p = normalizeUserFromRtdb(val, uid)
-      if (!p || p.shadowBanned) continue
-      const sub = receivedMap?.[uid]
-      const children =
-        sub != null && typeof sub === 'object'
-          ? (sub as Record<string, unknown>)
-          : undefined
-      list.push(mergeRatingsIntoProfile(p, children))
-    }
-    return list
-  }, [usersMap, receivedMap])
-
-  const players = useMemo(() => sortPlayers(raw), [raw])
+  const [ratingsTick, setRatingsTick] = useState(0)
 
   useEffect(() => {
-    if (!rtdb) {
-      setUsersMap(null)
-      setReceivedMap(null)
+    if (!db) {
+      setBasePlayers([])
       return
     }
-    const ur = ref(rtdb, 'users')
-    const rr = ref(rtdb, 'userRatingsReceived')
-    const unsubU = onValue(
-      ur,
+    const unsub = onSnapshot(
+      collection(db, 'users'),
       (snap) => {
-        setUsersMap(snap.exists() ? (snap.val() as Record<string, unknown>) : null)
+        const list: UserProfile[] = []
+        snap.forEach((d) => {
+          const p = normalizeUserFromFirestore(d.data(), d.id)
+          if (!p || p.shadowBanned) return
+          list.push(p)
+        })
+        setBasePlayers(list)
         setError(null)
       },
       (e) => setError(e.message),
     )
-    const unsubR = onValue(
-      rr,
-      (snap) => {
-        setReceivedMap(snap.exists() ? (snap.val() as Record<string, unknown>) : null)
-      },
-      (e) => setError(e.message),
-    )
-    return () => {
-      unsubU()
-      unsubR()
-    }
+    return () => unsub()
   }, [])
+
+  useEffect(() => {
+    if (!db) return
+    const unsub = onSnapshot(collection(db, 'ratings'), () => {
+      setRatingsTick((t) => t + 1)
+    })
+    return () => unsub()
+  }, [])
+
+  useEffect(() => {
+    if (!db || basePlayers.length === 0) {
+      setAggByUid(new Map())
+      return
+    }
+    const uids = basePlayers.map((p) => p.uid)
+    let cancelled = false
+    fetchRatingAggregatesForUids(db, uids).then((m) => {
+      if (!cancelled) setAggByUid(m)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [db, basePlayers, ratingsTick])
+
+  const players = useMemo(() => {
+    const merged = basePlayers.map((p) =>
+      mergeRatingIntoProfile(p, aggByUid.get(p.uid)),
+    )
+    return sortPlayers(merged)
+  }, [basePlayers, aggByUid])
 
   return { players, error }
 }

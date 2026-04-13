@@ -1,10 +1,16 @@
-import { push, ref, serverTimestamp, set } from 'firebase/database'
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore'
 import { useState } from 'react'
 import { useToast } from '../contexts/ToastContext'
-import { rtdb } from '../firebase/config'
+import { db } from '../firebase/config'
 import { Send } from '../lib/icons'
 import { LolEloIcon, LolRoleIcon } from './LolIcons'
-import { ELO_ORDER, ROLES } from '../lib/constants'
+import {
+  ELO_ORDER,
+  QUEUE_LABELS,
+  ROLE_LABELS,
+  ROLES,
+  eloTierLabel,
+} from '../lib/constants'
 import type { QueueType } from '../types/models'
 
 type Props = {
@@ -24,12 +30,11 @@ export function PostComposer({ uid, onCreated }: Props) {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!rtdb || !title.trim()) return
+    if (!db || !title.trim()) return
     setSending(true)
     setErr(null)
     try {
-      const newRef = push(ref(rtdb, 'posts'))
-      await set(newRef, {
+      await addDoc(collection(db, 'posts'), {
         uid,
         title: title.trim(),
         description: description.trim(),
@@ -44,7 +49,7 @@ export function PostComposer({ uid, onCreated }: Props) {
       onCreated?.()
     } catch {
       const msg =
-        'Não foi possível publicar. Verifique as regras do Realtime Database.'
+        'Não foi possível publicar. Verifique as regras do Firestore e o índice de posts.'
       setErr(msg)
       toast.error(msg)
     } finally {
@@ -57,7 +62,7 @@ export function PostComposer({ uid, onCreated }: Props) {
       onSubmit={submit}
       className="rounded-xl border border-border bg-card p-4"
     >
-      <h3 className="text-sm font-semibold text-white">Novo post LFG</h3>
+      <h3 className="text-sm font-semibold text-white">Novo pedido no feed</h3>
       <p className="mt-1 text-xs text-slate-500">
         Ex.: &quot;Procuro jungler Gold+ sem tilt pra duo agora&quot;
       </p>
@@ -86,7 +91,7 @@ export function PostComposer({ uid, onCreated }: Props) {
           >
             {ELO_ORDER.filter((x) => x !== 'UNRANKED').map((e) => (
               <option key={e} value={e}>
-                Mín {e}
+                Mín. {eloTierLabel(e)}
               </option>
             ))}
           </select>
@@ -100,7 +105,7 @@ export function PostComposer({ uid, onCreated }: Props) {
           >
             {ROLES.map((r) => (
               <option key={r} value={r}>
-                {r}
+                {ROLE_LABELS[r]}
               </option>
             ))}
           </select>
@@ -110,9 +115,9 @@ export function PostComposer({ uid, onCreated }: Props) {
           onChange={(e) => setQueueType(e.target.value as QueueType)}
           className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-white"
         >
-          <option value="duo">Duo</option>
-          <option value="flex">Flex</option>
-          <option value="clash">Clash</option>
+          <option value="duo">{QUEUE_LABELS.duo}</option>
+          <option value="flex">{QUEUE_LABELS.flex}</option>
+          <option value="clash">{QUEUE_LABELS.clash}</option>
         </select>
       </div>
       <button

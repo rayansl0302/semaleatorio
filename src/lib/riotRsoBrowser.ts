@@ -1,9 +1,8 @@
 /**
- * RSO no browser (VITE_* — exposto no bundle; só para iterar rápido).
+ * RSO no browser (VITE_* — exposto no bundle; usar quando a Riot aprovar o produto).
  *
  * CORS: em dev, aponta VITE_RIOT_RSO_TOKEN_URL e VITE_RIOT_RSO_ACCOUNT_ME_URL
- * para os proxies em /__riot-oauth/* (vite.config). Em prod na Vercel, usa
- * /api/riotRsoBrowserProxy (sem Firebase).
+ * para os proxies em /__riot-oauth/* (vite.config).
  */
 import { profileSlugFromNick } from './profileSlug'
 
@@ -116,7 +115,7 @@ export function logRsoBrowserDiagnostics(phase: string) {
   )
   console.info(
     'VITE_RIOT_RSO_CLIENT_SECRET',
-    sec ? `definido (${sec.length} chars)` : 'EM FALTA — precisas disto após voltar da Riot',
+    sec ? `definido (${sec.length} chars)` : 'FALTANDO — você precisa disso depois de voltar da Riot',
   )
   console.info(
     'redirect_uri que será enviado à Riot',
@@ -246,7 +245,7 @@ export async function completeRiotSsoInBrowser(
       body: accJson,
     })
     throw new Error(
-      'Não foi possível ler riot/account/v1/accounts/me. Confirma o scope openid e o proxy CORS.',
+      'Não foi possível ler riot/account/v1/accounts/me. Confirme o escopo openid e o proxy CORS.',
     )
   }
 

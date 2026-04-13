@@ -1,36 +1,38 @@
-import { get, update } from 'firebase/database'
+import { arrayUnion, doc, getDoc, updateDoc } from 'firebase/firestore'
 import { useEffect, useRef } from 'react'
-import { app as firebaseApp, rtdb } from '../firebase/config'
+import { app as firebaseApp, db } from '../firebase/config'
 import { requestFcmToken } from '../firebase/messaging'
-import { readRtdbStringList, userProfileRef } from '../lib/rtdbUserProfile'
 import type { User } from 'firebase/auth'
 
 const VAPID = import.meta.env.VITE_FCM_VAPID_KEY as string | undefined
 
+function tokenList(v: unknown): string[] {
+  if (v == null) return []
+  if (Array.isArray(v)) return v.map((x) => String(x))
+  return []
+}
+
 /**
- * Registra token FCM no perfil (Realtime Database) para notificações.
+ * Registra token FCM no perfil (Firestore, `users.fcmTokens`) para notificações.
  */
 export function useFcmRegistration(user: User | null) {
   const done = useRef(false)
 
   useEffect(() => {
-    if (!user || !rtdb || !firebaseApp || !VAPID || done.current) return
+    if (!user || !db || !firebaseApp || !VAPID || done.current) return
     let cancelled = false
     ;(async () => {
       const token = await requestFcmToken(firebaseApp, VAPID)
       if (cancelled || !token) return
       try {
-        const pref = userProfileRef(rtdb, user.uid)
-        const snap = await get(pref)
-        const raw = snap.exists()
-          ? (snap.val() as Record<string, unknown>).fcmTokens
-          : undefined
-        const cur = readRtdbStringList(raw)
+        const pref = doc(db, 'users', user.uid)
+        const snap = await getDoc(pref)
+        const cur = tokenList(snap.exists() ? snap.data()?.fcmTokens : undefined)
         if (cur.includes(token)) {
           done.current = true
           return
         }
-        await update(pref, { fcmTokens: [...cur, token] })
+        await updateDoc(pref, { fcmTokens: arrayUnion(token) })
         done.current = true
       } catch {
         /* permissão negada ou regras */

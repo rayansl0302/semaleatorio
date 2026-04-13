@@ -1,6 +1,14 @@
 import { useMemo, useId } from 'react'
 import { LolIconSelect } from './LolIconSelect'
-import { ELO_ORDER, QUEUE_LABELS, ROLES } from '../lib/constants'
+import {
+  ELO_ORDER,
+  LOOKING_FOR_MATCH_FILTER_HELP,
+  LOOKING_FOR_MATCH_FILTER_LABEL,
+  QUEUE_LABELS,
+  ROLES,
+  eloTierLabel,
+  roleLabel,
+} from '../lib/constants'
 import type { QueueType } from '../types/models'
 
 export type FilterState = {
@@ -47,7 +55,7 @@ export function SidebarFilters({
   const roleOptions = useMemo(
     () => [
       { value: 'ANY', label: 'Qualquer' },
-      ...ROLES.map((r) => ({ value: r, label: r })),
+      ...ROLES.map((r) => ({ value: r, label: roleLabel(r) })),
     ],
     [],
   )
@@ -57,14 +65,14 @@ export function SidebarFilters({
       { value: 'ANY', label: 'Qualquer' },
       ...ELO_ORDER.filter((e) => e !== 'UNRANKED').map((e) => ({
         value: e,
-        label: e,
+        label: eloTierLabel(e),
       })),
     ],
     [],
   )
 
   return (
-    <aside className="flex w-full flex-col gap-4 rounded-xl border border-border bg-card p-4 lg:max-w-[280px] lg:shrink-0">
+    <aside className="relative z-20 flex w-full flex-col gap-4 overflow-visible rounded-xl border border-border bg-card p-4 lg:sticky lg:top-24 lg:max-w-[300px] lg:shrink-0 lg:self-start">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
         Filtros
       </h2>
@@ -89,16 +97,11 @@ export function SidebarFilters({
             className="mt-0.5 rounded border-border text-primary focus:ring-primary"
           />
           <span>
-            <span className="font-medium">Só quem está LFG</span>
+            <span className="font-medium">{LOOKING_FOR_MATCH_FILTER_LABEL}</span>
           </span>
         </label>
         <p className="pl-7 text-[11px] leading-snug text-slate-500">
-          <abbr title="Looking for group" className="cursor-help no-underline">
-            LFG
-          </abbr>{' '}
-          vem do inglês <em>looking for group</em>: jogador que está{' '}
-          <strong className="font-medium text-slate-400">procurando time ou parceiro</strong> para
-          subir fila agora (duo, flex, Clash etc.).
+          {LOOKING_FOR_MATCH_FILTER_HELP}
         </p>
       </div>
 

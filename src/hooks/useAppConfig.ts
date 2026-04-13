@@ -1,39 +1,37 @@
-import { onValue, ref } from 'firebase/database'
+import { doc, onSnapshot } from 'firebase/firestore'
 import { useEffect, useState } from 'react'
-import { rtdb } from '../firebase/config'
+import { db } from '../firebase/config'
 
-export type AppPublicConfig = {
+export type AppConfigState = {
   onlineCountFloor: number
 }
 
-const DEFAULTS: AppPublicConfig = {
-  onlineCountFloor: 12,
+const DEFAULTS: AppConfigState = {
+  onlineCountFloor: 0,
 }
 
-export function useAppConfig() {
-  const [config, setConfig] = useState<AppPublicConfig>(DEFAULTS)
+export function useAppConfig(): AppConfigState {
+  const [cfg, setCfg] = useState<AppConfigState>(DEFAULTS)
 
   useEffect(() => {
-    if (!rtdb) return
-    const r = ref(rtdb, 'config/app')
-    return onValue(
+    if (!db) return
+    const r = doc(db, 'config', 'app')
+    return onSnapshot(
       r,
       (snap) => {
         if (!snap.exists()) {
-          setConfig(DEFAULTS)
+          setCfg(DEFAULTS)
           return
         }
-        const d = snap.val() as Partial<AppPublicConfig>
-        setConfig({
-          onlineCountFloor:
-            typeof d.onlineCountFloor === 'number'
-              ? d.onlineCountFloor
-              : DEFAULTS.onlineCountFloor,
+        const d = snap.data() as Record<string, unknown>
+        const floor = Number(d.onlineCountFloor ?? 0)
+        setCfg({
+          onlineCountFloor: Number.isFinite(floor) ? Math.max(0, floor) : 0,
         })
       },
-      () => setConfig(DEFAULTS),
+      () => setCfg(DEFAULTS),
     )
   }, [])
 
-  return config
+  return cfg
 }

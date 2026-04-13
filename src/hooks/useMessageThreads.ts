@@ -1,86 +1,57 @@
-import { useEffect, useState } from 'react'
-import { rtdb } from '../firebase/config'
-import { subscribeUserMessages } from '../lib/rtdbMessages'
+import { useEffect, useMemo, useState } from 'react'
+import { db } from '../firebase/config'
+import { subscribeUserMessagesFs } from '../lib/firestoreMessages'
 import { threadIdFor } from '../lib/messages'
 import type { MessageDoc } from '../types/models'
 
-export type MessageThreadRow = {
-  threadId: string
-  peerUid: string
-  lastText: string
-  lastAt: MessageDoc['createdAt']
-}
-
-function millis(t: MessageDoc['createdAt']): number {
-  return t && typeof t.toMillis === 'function' ? t.toMillis() : 0
-}
-
-function buildThreads(myUid: string, docs: MessageDoc[]): MessageThreadRow[] {
-  const best = new Map<string, MessageDoc>()
-  for (const m of docs) {
-    const peer = m.fromUid === myUid ? m.toUid : m.fromUid
-    const tid = m.threadId || threadIdFor(myUid, peer)
-    const cur = best.get(tid)
-    if (!cur || millis(m.createdAt) > millis(cur.createdAt)) best.set(tid, m)
-  }
-  return [...best.values()]
-    .sort((a, b) => millis(b.createdAt) - millis(a.createdAt))
-    .map((m) => {
-      const peerUid = m.fromUid === myUid ? m.toUid : m.fromUid
-      return {
-        threadId: m.threadId || threadIdFor(myUid, peerUid),
-        peerUid,
-        lastText: m.text,
-        lastAt: m.createdAt,
-      }
-    })
+function millis(m: MessageDoc): number {
+  return m.createdAt?.toMillis?.() ?? 0
 }
 
 export function useMessageThreads(myUid: string | undefined) {
-  const [threads, setThreads] = useState<MessageThreadRow[]>([])
-  const [error, setError] = useState<string | null>(null)
+  const [fromList, setFromList] = useState<MessageDoc[]>([])
+  const [toList, setToList] = useState<MessageDoc[]>([])
 
   useEffect(() => {
-    if (!rtdb || !myUid) {
-      setThreads([])
-      setError(null)
+    if (!db || !myUid) {
+      setFromList([])
+      setToList([])
       return
     }
-
-    let sent: MessageDoc[] = []
-    let recv: MessageDoc[] = []
-
-    const flush = () => {
-      setThreads(buildThreads(myUid, [...sent, ...recv]))
-      setError(null)
-    }
-
-    const unsubSent = subscribeUserMessages(
-      rtdb,
-      'fromUid',
-      myUid,
-      80,
-      (list) => {
-        sent = list
-        flush()
-      },
-    )
-    const unsubRecv = subscribeUserMessages(
-      rtdb,
-      'toUid',
-      myUid,
-      80,
-      (list) => {
-        recv = list
-        flush()
-      },
-    )
-
+    const lim = 120
+    const u1 = subscribeUserMessagesFs(db, 'fromUid', myUid, lim, setFromList)
+    const u2 = subscribeUserMessagesFs(db, 'toUid', myUid, lim, setToList)
     return () => {
-      unsubSent()
-      unsubRecv()
+      u1()
+      u2()
     }
   }, [myUid])
 
-  return { threads, error }
+  const threads = useMemo(() => {
+    const best = new Map<string, MessageDoc>()
+    const consider = (m: MessageDoc) => {
+      const tid =
+        m.threadId ||
+        threadIdFor(m.fromUid, m.toUid)
+      const cur = best.get(tid)
+      if (!cur || millis(m) > millis(cur)) best.set(tid, m)
+    }
+    for (const m of fromList) consider(m)
+    for (const m of toList) consider(m)
+    return [...best.entries()]
+      .sort((a, b) => millis(b[1]) - millis(a[1]))
+      .map(([tid, last]) => {
+        const peerUid =
+          last.fromUid === myUid ? last.toUid : last.fromUid
+        return {
+          threadId: tid,
+          last,
+          peerUid,
+          lastAt: last.createdAt,
+          lastText: typeof last.text === 'string' ? last.text : '',
+        }
+      })
+  }, [fromList, toList, myUid])
+
+  return { threads }
 }

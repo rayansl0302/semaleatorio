@@ -1,6 +1,5 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app'
 import { getAuth } from 'firebase/auth'
-import { getDatabase, type Database } from 'firebase/database'
 import {
   getFirestore,
   initializeFirestore,
@@ -14,10 +13,6 @@ const measurementId = import.meta.env.VITE_FIREBASE_MEASUREMENT_ID as
   | string
   | undefined
 
-const databaseURL = import.meta.env.VITE_FIREBASE_DATABASE_URL as
-  | string
-  | undefined
-
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -26,7 +21,6 @@ const firebaseConfig = {
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
   ...(measurementId ? { measurementId } : {}),
-  ...(databaseURL ? { databaseURL } : {}),
 }
 
 function str(v: unknown): string | undefined {
@@ -48,11 +42,6 @@ export function missingFirebaseViteEnvVars(): readonly string[] {
   return REQUIRED_FIREBASE_VITE_KEYS.filter((k) => !str(env[k]))
 }
 
-/**
- * Auth (Google popup etc.) exige o mesmo objeto do Console: apiKey, authDomain,
- * projectId, storageBucket, messagingSenderId, appId. Se faltar authDomain/appId,
- * o SDK até inicia, mas signIn dispara auth/configuration-not-found.
- */
 function createFirebase(): { app: FirebaseApp } | null {
   const apiKey = str(firebaseConfig.apiKey)
   const authDomain = str(firebaseConfig.authDomain)
@@ -71,7 +60,6 @@ function createFirebase(): { app: FirebaseApp } | null {
     return null
   }
   const mid = str(measurementId)
-  const dbu = str(databaseURL)
   const app = initializeApp({
     apiKey,
     authDomain,
@@ -80,7 +68,6 @@ function createFirebase(): { app: FirebaseApp } | null {
     messagingSenderId,
     appId,
     ...(mid ? { measurementId: mid } : {}),
-    ...(dbu ? { databaseURL: dbu } : {}),
   })
   return { app }
 }
@@ -91,11 +78,6 @@ export const app = fb?.app ?? null
 
 export const auth = fb ? getAuth(fb.app) : null
 
-/**
- * Sem experimentalForceLongPolling: o WebChannel normal é mais rápido; o SDK já
- * usa auto-detect de long-polling quando preciso. Forçar long-polling em tudo
- * deixava getDoc/setDoc visivelmente lentos.
- */
 const firestoreSettings = import.meta.env.DEV
   ? { localCache: memoryLocalCache() }
   : {
@@ -104,9 +86,6 @@ const firestoreSettings = import.meta.env.DEV
       }),
     }
 
-/**
- * Dev: cache em memória + long polling. HMR/Strict Mode: se já existir instância, usa getFirestore.
- */
 function createFirestore(app: FirebaseApp): Firestore {
   try {
     return initializeFirestore(app, firestoreSettings)
@@ -117,5 +96,9 @@ function createFirestore(app: FirebaseApp): Firestore {
 
 export const db = fb ? createFirestore(fb.app) : null
 
-export const rtdb: Database | null =
-  fb && str(databaseURL) ? getDatabase(fb.app) : null
+/** @returns `core` se faltam chaves Web · `null` se ok */
+export function firebaseFeedBlockedReason(): 'core' | null {
+  if (!firebaseReady) return 'core'
+  if (!db) return 'core'
+  return null
+}

@@ -1,16 +1,2 @@
-# Variáveis para colar na Vercel → Project → Settings → Environment Variables
-# (Não vão para o .env do Vite / repositório.)
-
-FIREBASE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
-# Mesma URL do Realtime Database que no app (ex.: https://PROJETO-default-rtdb.firebaseio.com)
-FIREBASE_DATABASE_URL=
-
-RIOT_API_KEY=
-RIOT_PLATFORM_ROUTING=br1
-
-# RSO no browser: segredos em VITE_RIOT_RSO_* no build (ver .env.example).
-# Proxy CORS sem Firebase (opcional em prod): deploy inclui /api/riotRsoBrowserProxy
-
-ASAAS_API_KEY=
-ASAAS_API_BASE=https://api-sandbox.asaas.com/v3
-ASAAS_WEBHOOK_TOKEN=
+# Este projeto não usa API serverless na Vercel nem Cloud Functions no repositório.
+# Dados e regras: Firebase Authentication + Firestore (ver README).

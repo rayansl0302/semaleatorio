@@ -1,7 +1,7 @@
-import { get, ref, set } from 'firebase/database'
 import { useState } from 'react'
-import { rtdb } from '../firebase/config'
 import { useToast } from '../contexts/ToastContext'
+import { db } from '../firebase/config'
+import { submitRatingToFirestore } from '../lib/ratingsFirestore'
 
 type Props = {
   open: boolean
@@ -21,38 +21,27 @@ export function RateUserModal({ open, onClose, target, fromUid }: Props) {
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!target || target.uid === fromUid) return
-    if (!rtdb) {
-      setMsg('Realtime Database não configurada.')
-      toast.error('Realtime Database não configurada.')
+    if (!db) {
+      setMsg('Firestore não está configurado.')
+      toast.error('Firestore não está configurado.')
       return
     }
     setSending(true)
     setMsg(null)
     try {
-      const path = `userRatingsReceived/${target.uid}/${fromUid}`
-      const r = ref(rtdb, path)
-      const existing = await get(r)
-      if (existing.exists()) {
-        setMsg('Já avaliaste este jogador.')
-        toast.error('Já avaliaste este jogador.')
-        return
-      }
-      const overall = Number(
-        (((comm + skill + (6 - tox)) / 3).toFixed(4)),
-      )
-      await set(r, {
+      await submitRatingToFirestore(db, {
+        fromUid,
+        toUid: target.uid,
         communication: comm,
         skill,
         toxicity: tox,
-        overall,
-        createdAt: Date.now(),
       })
       setMsg('Avaliação enviada. Valeu por ajudar a comunidade!')
       toast.success('Avaliação enviada. Obrigado!')
       setTimeout(onClose, 1200)
     } catch (e: unknown) {
       const m =
-        e instanceof Error ? e.message : 'Não foi possível enviar. Tenta de novo.'
+        e instanceof Error ? e.message : 'Não foi possível enviar. Tente novamente.'
       setMsg(m)
       toast.error(m)
     } finally {
@@ -76,7 +65,7 @@ export function RateUserModal({ open, onClose, target, fromUid }: Props) {
           Avaliar {target.nickname}
         </h2>
         <p className="mt-1 text-xs text-slate-500">
-          Comunicação, skill e toxicidade (1 = muito tóxico)
+          Comunicação, habilidade e toxicidade (1 = muito tóxico)
         </p>
         {msg && <p className="mt-2 text-sm text-primary">{msg}</p>}
         <label className="mt-4 block text-sm text-slate-300">
@@ -91,7 +80,7 @@ export function RateUserModal({ open, onClose, target, fromUid }: Props) {
           />
         </label>
         <label className="mt-3 block text-sm text-slate-300">
-          Skill: {skill}
+          Habilidade: {skill}
           <input
             type="range"
             min={1}

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { eloTierLabel } from '../lib/constants'
 import { eloIconSrc } from '../lib/lolAssets'
 import { LolEloIcon, LolRoleIcon } from './LolIcons'
 
@@ -40,7 +41,7 @@ function OptionIcon({
         title="Sem ícone"
         aria-hidden
       >
-        {value.slice(0, 2)}
+        {eloTierLabel(value).slice(0, 2).toUpperCase()}
       </span>
     )
   }
@@ -101,7 +102,7 @@ export function LolIconSelect({
         <ul
           id={listId}
           role="listbox"
-          className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-border bg-card py-1 shadow-xl"
+          className="absolute left-0 right-0 z-[200] mt-1 max-h-60 overflow-auto rounded-lg border border-border bg-card py-1 shadow-xl"
         >
           {options.map((opt) => {
             const sel = value === opt.value
