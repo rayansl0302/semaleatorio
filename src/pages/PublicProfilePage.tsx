@@ -1,10 +1,11 @@
-import { get } from 'firebase/database'
+import { get, ref } from 'firebase/database'
 import { Helmet } from 'react-helmet-async'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { rtdb } from '../firebase/config'
+import { mergeRatingsIntoProfile } from '../lib/ratingsReceived'
 import {
   normalizeUserFromRtdb,
   profileSlugIndexRef,
@@ -55,9 +56,15 @@ export function PublicProfilePage() {
         setLoading(false)
         return
       }
+      const recvSnap = await get(ref(rtdb, `userRatingsReceived/${uid}`))
+      if (cancelled) return
+      const recvChildren = recvSnap.exists()
+        ? (recvSnap.val() as Record<string, unknown>)
+        : null
       const p = normalizeUserFromRtdb(usrSnap.val(), uid)
-      if (p?.shadowBanned) setTarget(null)
-      else setTarget(p)
+      const merged = p ? mergeRatingsIntoProfile(p, recvChildren) : null
+      if (merged?.shadowBanned) setTarget(null)
+      else setTarget(merged)
       setLoading(false)
     })()
     return () => {

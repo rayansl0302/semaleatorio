@@ -3,20 +3,28 @@ import { get } from 'firebase/database'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Helmet } from 'react-helmet-async'
 import { Link, useSearchParams } from 'react-router-dom'
-import { formatApiBackendError } from '../lib/callableErrors'
 import { LolEloIcon, LolRoleIcon } from '../components/LolIcons'
 import { RateUserModal } from '../components/RateUserModal'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { vercelApiCall, vercelApiConfigured } from '../firebase/api'
 import { rtdb } from '../firebase/config'
-import { PLAYER_TAG_OPTIONS, QUEUE_LABELS, ROLES } from '../lib/constants'
+import { ELO_ORDER, PLAYER_TAG_OPTIONS, QUEUE_LABELS, ROLES } from '../lib/constants'
 import { isPremiumActive } from '../lib/plan'
+import { profileSlugFromNick } from '../lib/profileSlug'
 import { normalizeUserFromRtdb, userProfileRef } from '../lib/rtdbUserProfile'
 import { getPublicSiteUrl } from '../lib/siteUrl'
 import { hasSemiAleatorioSeal } from '../lib/seal'
 import { formatLastSeenAgo, isRecentlyActive } from '../lib/timeAgoFirestore'
 import type { PlayerStatus, QueueType, UserProfile } from '../types/models'
+
+function eloTierForSelect(elo: string | undefined): (typeof ELO_ORDER)[number] {
+  const tier =
+    (elo ?? 'UNRANKED').trim().split(/\s+/)[0]?.toUpperCase() ?? 'UNRANKED'
+  return (ELO_ORDER as readonly string[]).includes(tier)
+    ? (tier as (typeof ELO_ORDER)[number])
+    : 'UNRANKED'
+}
 
 export function ProfilePage() {
   const {
@@ -165,19 +173,27 @@ export function ProfilePage() {
       setRiotMsg('Preenche o nome de invocador e a tag (ex.: BR1).')
       return
     }
+    if (!rtdb) {
+      setRiotMsg('Realtime Database não configurada (VITE_FIREBASE_DATABASE_URL).')
+      return
+    }
     setLinkRiotLoading(true)
     setRiotMsg(null)
     try {
-      await vercelApiCall('linkRiotProfile', {
-        gameName: gn,
-        tagLine: tag,
+      const profileSlug = profileSlugFromNick(gn, tag)
+      await persistProfile(user.uid, {
+        nickname: gn,
+        tag,
+        profileSlug,
       })
       await refreshProfile()
       riotInputFocusRef.current = { nick: false, tag: false }
-      setRiotMsg('Riot ID confirmado — nick, tag, PUUID e elo atualizados.')
-      toast.success('Riot ID confirmado.')
+      setRiotMsg(
+        'Nick e tag guardados no perfil (Realtime Database). O elo continua o que definires no perfil; com login Riot (SSO) aprovado no painel, ligaremos a conta oficialmente.',
+      )
+      toast.success('Riot ID guardado no perfil.')
     } catch (e) {
-      setRiotMsg(formatApiBackendError(e))
+      setRiotMsg(e instanceof Error ? e.message : 'Não foi possível guardar.')
     } finally {
       setLinkRiotLoading(false)
     }
@@ -207,6 +223,10 @@ export function ProfilePage() {
         Perfil não encontrado ou indisponível (moderação).
       </p>
     )
+  }
+
+  if (isOwn && user && !display) {
+    return <p className="text-slate-500">Carregando perfil…</p>
   }
 
   if (!display) return null
@@ -350,6 +370,35 @@ export function ProfilePage() {
           </div>
         )}
 
+        {isOwn && (
+          <div className="relative mt-6 space-y-3 border-t border-border pt-6">
+            <h2 className="text-sm font-semibold uppercase text-slate-500">
+              Elo exibido
+            </h2>
+            <p className="text-xs leading-relaxed text-slate-500">
+              Escolhe o ranque que aparece no teu perfil e no mural. Podes mudar quando quiser; quando
+              confirmares o Riot ID com o servidor, o elo pode ser atualizado de novo pela API.
+            </p>
+            <label className="flex max-w-md flex-col gap-2 text-xs text-slate-500 sm:flex-row sm:items-center">
+              <span className="inline-flex shrink-0 items-center gap-2 sm:min-w-[8rem]">
+                <LolEloIcon elo={display.elo} className="h-9 w-9" />
+                <span className="font-medium text-slate-400">Divisão</span>
+              </span>
+              <select
+                value={eloTierForSelect(display.elo)}
+                onChange={(e) => void saveField('elo', e.target.value)}
+                className="min-w-0 flex-1 rounded-lg border border-border bg-bg px-3 py-2 text-sm font-medium text-white"
+              >
+                {ELO_ORDER.map((elo) => (
+                  <option key={elo} value={elo}>
+                    {elo}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
+
         {!isOwn && (
           <div className="relative mt-6 space-y-4 border-t border-border pt-6">
             <div className="flex flex-wrap items-center gap-2">
@@ -435,12 +484,12 @@ export function ProfilePage() {
             </h2>
             <p className="text-sm text-slate-400">
               {profile?.riotPuuid
-                ? `Ligado: ${profile.nickname ?? '?'}#${profile.tag ?? '?'}`
-                : 'Confirma o teu Riot ID abaixo — o servidor valida com a Riot API e atualiza nick, tag, PUUID e elo.'}
+                ? `Ligado (SSO): ${profile.nickname ?? '?'}#${profile.tag ?? '?'}`
+                : 'Confirma o teu Riot ID abaixo — os dados ficam só no Realtime Database. Sem backend: não há validação com a API da Riot até o login oficial (SSO) estar aprovado.'}
             </p>
             <p className="text-xs leading-relaxed text-slate-500">
-              O login Riot no browser (SSO) está desativado nesta versão. Usa sempre a confirmação
-              manual; exige <code className="text-[0.65rem]">RIOT_API_KEY</code> no backend.
+              O backend do SemAleatório fica reservado a pagamentos (Asaas) e, quando aprovado, ao
+              login Riot (SSO). O elo no perfil ajustas manualmente nas opções acima.
             </p>
             <p className="text-xs font-medium uppercase tracking-wide text-slate-600">
               Confirmar Riot ID
@@ -494,8 +543,8 @@ export function ProfilePage() {
               </p>
             ) : null}
             <p className="text-xs text-slate-600">
-              O nick e a tag têm de coincidir com a conta na região configurada (
-              <code className="text-slate-500">RIOT_PLATFORM_ROUTING</code>, ex. br1).
+              Usa o mesmo nick e tag que no cliente da Riot (ex.: Faker#KR1) para o perfil público
+              bater certo com quem te procura.
             </p>
           </div>
         )}

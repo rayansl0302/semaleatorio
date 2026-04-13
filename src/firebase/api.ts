@@ -43,6 +43,11 @@ export async function vercelApiCall<TResponse>(
     /* ignore */
   }
   if (!res.ok) {
+    if (res.status === 502 || res.status === 503) {
+      throw new Error(
+        'API local indisponível (502/503). Corre `npm run dev:all` ou, noutro terminal, `npm run dev:api` (vercel dev em 127.0.0.1:3000) enquanto o Vite corre em :5173 — o proxy `/api` precisa desse backend.',
+      )
+    }
     throw new Error(
       json.error?.message ?? `Erro ${res.status} ao chamar ${routeName}`,
     )

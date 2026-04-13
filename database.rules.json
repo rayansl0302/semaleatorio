@@ -2,38 +2,6 @@
   "rules": {
     ".read": false,
     ".write": false,
-    "users": {
-      "$uid": {
-        ".read": "auth != null",
-        ".write": "auth != null && auth.uid == $uid"
-      }
-    },
-    "profileSlugIndex": {
-      "$slug": {
-        ".read": "auth != null",
-        ".write": "auth != null && (!data.exists() || data.child('uid').val() == auth.uid) && (!newData.exists() || newData.child('uid').val() == auth.uid)"
-      }
-    },
-    "posts": {
-      ".read": "auth != null",
-      ".indexOn": ["createdAt", "uid"],
-      "$postId": {
-        ".write": "auth != null && ((!newData.exists() && data.exists() && data.child('uid').val() == auth.uid) || (newData.exists() && newData.child('uid').val() == auth.uid && (!data.exists() || data.child('uid').val() == auth.uid)))"
-      }
-    },
-    "messages": {
-      ".read": "auth != null",
-      ".indexOn": ["threadId", "fromUid", "toUid"],
-      "$msgId": {
-        ".write": "auth != null && ((newData.exists() && newData.child('fromUid').val() == auth.uid) || (!newData.exists() && data.exists() && data.child('fromUid').val() == auth.uid))"
-      }
-    },
-    "reports": {
-      ".read": false,
-      "$reportId": {
-        ".write": "auth != null && newData.child('fromUid').val() == auth.uid"
-      }
-    },
     "presence": {
       "$uid": {
         ".read": "auth != null",
@@ -48,23 +16,73 @@
         }
       }
     },
+    "users": {
+      "$uid": {
+        ".read": true,
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+    "profileSlugIndex": {
+      "$slug": {
+        ".read": true,
+        ".write": "auth != null && ((!newData.exists() && (!data.exists() || data.child('uid').val() == auth.uid)) || (newData.exists() && newData.child('uid').val() == auth.uid && (!data.exists() || data.child('uid').val() == auth.uid)))"
+      }
+    },
+    "posts": {
+      ".indexOn": ["createdAt", "uid"],
+      "$pid": {
+        ".read": true,
+        ".write": "auth != null && ((!data.exists() && newData.child('uid').val() == auth.uid) || (data.exists() && data.child('uid').val() == auth.uid))",
+        ".validate": "!newData.exists() || (newData.hasChildren(['uid','title','description','eloMin','role','queueType','createdAt']) && newData.child('uid').val() == auth.uid && newData.child('title').isString() && newData.child('title').val().length > 0 && newData.child('title').val().length <= 200 && newData.child('description').isString() && newData.child('description').val().length <= 2000 && newData.child('eloMin').isString() && newData.child('role').isString() && (newData.child('queueType').val() == 'duo' || newData.child('queueType').val() == 'flex' || newData.child('queueType').val() == 'clash'))"
+      }
+    },
+    "messages": {
+      ".indexOn": ["threadId", "fromUid", "toUid", "createdAt"],
+      "$mid": {
+        ".read": "auth != null && (data.child('fromUid').val() == auth.uid || data.child('toUid').val() == auth.uid)",
+        ".write": "auth != null && !data.exists() && newData.child('fromUid').val() == auth.uid",
+        ".validate": "!newData.exists() || (newData.hasChildren(['threadId','fromUid','toUid','text','createdAt']) && newData.child('text').isString() && newData.child('text').val().length > 0 && newData.child('text').val().length <= 4000 && newData.child('toUid').isString() && newData.child('threadId').isString())"
+      }
+    },
+    "reports": {
+      "$rid": {
+        ".read": false,
+        ".write": "auth != null && !data.exists() && newData.child('fromUid').val() == auth.uid",
+        ".validate": "!newData.exists() || (newData.hasChildren(['fromUid','toUid','reason','detail','createdAt']) && newData.child('reason').isString() && newData.child('reason').val().length > 0 && newData.child('reason').val().length <= 64 && newData.child('detail').isString() && newData.child('detail').val().length <= 500 && newData.child('toUid').isString())"
+      }
+    },
+    "userRatingsReceived": {
+      ".read": true,
+      "$toUid": {
+        ".read": true,
+        "$fromUid": {
+          ".read": true,
+          ".write": "auth != null && auth.uid == $fromUid && $fromUid != $toUid && !data.exists()",
+          ".validate": "newData.hasChildren(['communication','skill','toxicity','overall','createdAt']) && newData.child('communication').isNumber() && newData.child('communication').val() >= 1 && newData.child('communication').val() <= 5 && newData.child('skill').isNumber() && newData.child('skill').val() >= 1 && newData.child('skill').val() <= 5 && newData.child('toxicity').isNumber() && newData.child('toxicity').val() >= 1 && newData.child('toxicity').val() <= 5 && newData.child('overall').isNumber() && newData.child('overall').val() >= 1 && newData.child('overall').val() <= 5 && newData.child('createdAt').isNumber()"
+        }
+      }
+    },
+    "ratings": {
+      "$rid": {
+        ".read": false,
+        ".write": false
+      }
+    },
+    "webhook_events": {
+      "$id": {
+        ".read": false,
+        ".write": false
+      }
+    },
     "config": {
       "app": {
-        ".read": "auth != null",
+        ".read": true,
         ".write": false
       }
     },
     "seed_profiles": {
-      ".read": "auth != null",
-      ".write": false
-    },
-    "webhook_events": {
-      ".read": false,
-      ".write": false
-    },
-    "ratings": {
       "$id": {
-        ".read": false,
+        ".read": true,
         ".write": false
       }
     }

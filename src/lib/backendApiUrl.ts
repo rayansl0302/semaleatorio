@@ -54,7 +54,7 @@ export function getBackendApiBaseUrl(): string | undefined {
   return undefined
 }
 
-/** Path absoluto no host atual, ex. `/api/linkRiotProfile`. */
+/** Path absoluto no host atual, ex. `/api/createAsaasCheckout`. */
 export function resolveBackendApiRequestPath(routeName: string): string {
   const name = routeName.replace(/^\//, '')
   return `/api/${name}`

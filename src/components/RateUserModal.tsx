@@ -1,6 +1,7 @@
+import { get, ref, set } from 'firebase/database'
 import { useState } from 'react'
+import { rtdb } from '../firebase/config'
 import { useToast } from '../contexts/ToastContext'
-import { vercelApiCall } from '../firebase/api'
 
 type Props = {
   open: boolean
@@ -20,21 +21,38 @@ export function RateUserModal({ open, onClose, target, fromUid }: Props) {
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!target || target.uid === fromUid) return
+    if (!rtdb) {
+      setMsg('Realtime Database não configurada.')
+      toast.error('Realtime Database não configurada.')
+      return
+    }
     setSending(true)
     setMsg(null)
     try {
-      await vercelApiCall('submitRating', {
-        toUid: target.uid,
+      const path = `userRatingsReceived/${target.uid}/${fromUid}`
+      const r = ref(rtdb, path)
+      const existing = await get(r)
+      if (existing.exists()) {
+        setMsg('Já avaliaste este jogador.')
+        toast.error('Já avaliaste este jogador.')
+        return
+      }
+      const overall = Number(
+        (((comm + skill + (6 - tox)) / 3).toFixed(4)),
+      )
+      await set(r, {
         communication: comm,
-        skill: skill,
+        skill,
         toxicity: tox,
+        overall,
+        createdAt: Date.now(),
       })
       setMsg('Avaliação enviada. Valeu por ajudar a comunidade!')
       toast.success('Avaliação enviada. Obrigado!')
       setTimeout(onClose, 1200)
     } catch (e: unknown) {
-      const err = e as { message?: string }
-      const m = err?.message ?? 'Confira a API (vercel dev / Vercel) e o login.'
+      const m =
+        e instanceof Error ? e.message : 'Não foi possível enviar. Tenta de novo.'
       setMsg(m)
       toast.error(m)
     } finally {

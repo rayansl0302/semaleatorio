@@ -28,7 +28,12 @@ import {
   set,
   update,
 } from 'firebase/database'
-import { auth, firebaseReady, rtdb } from '../firebase/config'
+import { auth, db, firebaseReady, rtdb } from '../firebase/config'
+import {
+  scheduleFirestoreShellSync,
+  tryFirestoreMigrationWithTimeout,
+} from '../lib/firestoreUserMigration'
+import { mergeRatingsIntoProfile } from '../lib/ratingsReceived'
 import {
   initialUserPayloadForRtdb,
   normalizeUserFromRtdb,
@@ -108,23 +113,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       const database = rtdb
       const pref = userProfileRef(database, uid)
-      unsubProfileRef.current = onValue(pref, async (snap) => {
-        if (!snap.exists()) {
+      const recvRef = dbRef(database, `userRatingsReceived/${uid}`)
+      let userVal: unknown
+      let recvChildren: Record<string, unknown> | null = null
+
+      const flush = async () => {
+        if (userVal === undefined) return
+        if (userVal == null) {
           const fresh = await get(pref)
           if (!fresh.exists()) {
             setProfile(null)
             return
           }
-          const p = normalizeUserFromRtdb(fresh.val(), uid)
-          setProfile(p)
+          userVal = fresh.val()
+        }
+        const base = normalizeUserFromRtdb(userVal, uid)
+        if (!base) {
+          setProfile(null)
           return
         }
-        const p = normalizeUserFromRtdb(snap.val(), uid)
-        setProfile(p)
-        if (p?.profileSlug) {
-          await set(profileSlugIndexRef(database, p.profileSlug), { uid })
+        const merged = mergeRatingsIntoProfile(base, recvChildren)
+        setProfile(merged)
+        if (merged.profileSlug) {
+          await set(profileSlugIndexRef(database, merged.profileSlug), { uid })
         }
+      }
+
+      const unUser = onValue(pref, (snap) => {
+        userVal = snap.exists() ? snap.val() : null
+        void flush()
       })
+      const unRecv = onValue(recvRef, (snap) => {
+        recvChildren = snap.exists() ? (snap.val() as Record<string, unknown>) : null
+        void flush()
+      })
+      unsubProfileRef.current = () => {
+        unUser()
+        unRecv()
+      }
     },
     [detachProfileListener],
   )
@@ -155,52 +181,86 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       const pref = userProfileRef(rtdb, u.uid)
       const snap = await get(pref)
-      if (!snap.exists()) {
-        const nickname = u.displayName?.trim() || 'Invocador'
-        const tag = 'BR1'
-        const slug = profileSlugFromNick(nickname, tag)
-        const base: UserProfile = {
-          uid: u.uid,
-          nickname,
-          tag,
-          elo: 'UNRANKED',
-          roles: [],
-          status: 'LFG',
-          bio: '',
-          ratingAvg: 0,
-          ratingCount: 0,
-          lastOnline: null,
-          plan: 'free',
-          semiAleatorio: false,
-          playerTags: [],
-          queueTypes: ['duo', 'flex', 'clash'],
-          favoriteUids: [],
-          boostUntil: null,
-          playingNow: false,
-          createdAt: null,
-          profileSlug: slug,
-        }
-        await set(pref, initialUserPayloadForRtdb(base))
-        await set(profileSlugIndexRef(rtdb, slug), { uid: u.uid })
-      }
+
+      // Listener já — o perfil aparece assim que o RTDB responder (não espera Firestore).
       attachProfileListener(u.uid)
+
+      const online =
+        typeof navigator === 'undefined' || navigator.onLine === true
+
+      if (!snap.exists()) {
+        let migrated = false
+        if (db && online) {
+          migrated = await tryFirestoreMigrationWithTimeout(db, rtdb, u, 2800)
+        }
+        if (!migrated) {
+          const nickname = u.displayName?.trim() || 'Invocador'
+          const tag = 'BR1'
+          const slug = profileSlugFromNick(nickname, tag)
+          const base: UserProfile = {
+            uid: u.uid,
+            nickname,
+            tag,
+            elo: 'UNRANKED',
+            roles: [],
+            status: 'LFG',
+            bio: '',
+            ratingAvg: 0,
+            ratingCount: 0,
+            lastOnline: null,
+            plan: 'free',
+            semiAleatorio: false,
+            playerTags: [],
+            queueTypes: ['duo', 'flex', 'clash'],
+            favoriteUids: [],
+            boostUntil: null,
+            playingNow: false,
+            createdAt: null,
+            profileSlug: slug,
+          }
+          await set(pref, initialUserPayloadForRtdb(base))
+          await set(profileSlugIndexRef(rtdb, slug), { uid: u.uid })
+        }
+      } else if (db && online) {
+        scheduleFirestoreShellSync(db, rtdb, u)
+      }
+
       setLoading(false)
     })
     return () => unsub()
   }, [attachProfileListener, detachProfileListener])
 
   useEffect(() => {
-    if (!user || !rtdb) return
-    const presenceRef = dbRef(rtdb, `presence/${user.uid}`)
+    if (!user || !rtdb || !auth) return
+    const uid = user.uid
+    const authInst = auth
+    const presenceRef = dbRef(rtdb, `presence/${uid}`)
     const connectedRef = dbRef(rtdb, '.info/connected')
+
     const unsub = onValue(connectedRef, (snap) => {
       if (snap.val() !== true) return
-      void onDisconnect(presenceRef).remove()
-      void set(presenceRef, { state: 'online', lastChanged: serverTimestamp() })
+      // O token de auth pode ainda não estar ligado ao RTDB no mesmo tick que .info/connected.
+      queueMicrotask(() => {
+        void (async () => {
+          for (let attempt = 0; attempt < 6; attempt++) {
+            if (authInst.currentUser?.uid !== uid) return
+            try {
+              await onDisconnect(presenceRef).remove()
+              await set(presenceRef, {
+                state: 'online',
+                lastChanged: serverTimestamp(),
+              })
+              return
+            } catch {
+              await new Promise((r) => setTimeout(r, 60 * (attempt + 1)))
+            }
+          }
+        })()
+      })
     })
+
     return () => {
       unsub()
-      void remove(presenceRef)
     }
   }, [user])
 
@@ -246,6 +306,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     if (!auth) return
+    const uid = auth.currentUser?.uid
+    if (rtdb && uid) {
+      try {
+        await remove(dbRef(rtdb, `presence/${uid}`))
+      } catch {
+        /* sessão pode já estar a expirar */
+      }
+    }
     await signOut(auth)
   }, [])
 
@@ -256,7 +324,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(null)
       return
     }
-    setProfile(normalizeUserFromRtdb(snap.val(), user.uid))
+    const recvSnap = await get(dbRef(rtdb, `userRatingsReceived/${user.uid}`))
+    const recvChildren = recvSnap.exists()
+      ? (recvSnap.val() as Record<string, unknown>)
+      : null
+    const base = normalizeUserFromRtdb(snap.val(), user.uid)
+    if (!base) {
+      setProfile(null)
+      return
+    }
+    setProfile(mergeRatingsIntoProfile(base, recvChildren))
   }, [user])
 
   const persistProfile = useCallback(

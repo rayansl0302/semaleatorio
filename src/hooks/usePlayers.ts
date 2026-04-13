@@ -2,6 +2,7 @@ import { onValue, ref } from 'firebase/database'
 import { useEffect, useMemo, useState } from 'react'
 import { rtdb } from '../firebase/config'
 import { eloRank } from '../lib/constants'
+import { mergeRatingsIntoProfile } from '../lib/ratingsReceived'
 import { normalizeUserFromRtdb } from '../lib/rtdbUserProfile'
 import { isPremiumActive } from '../lib/plan'
 import type { UserProfile } from '../types/models'
@@ -30,32 +31,55 @@ function sortPlayers(list: UserProfile[]): UserProfile[] {
 }
 
 export function usePlayers() {
-  const [raw, setRaw] = useState<UserProfile[]>([])
+  const [usersMap, setUsersMap] = useState<Record<string, unknown> | null>(null)
+  const [receivedMap, setReceivedMap] = useState<Record<string, unknown> | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const raw = useMemo(() => {
+    if (!usersMap) return []
+    const list: UserProfile[] = []
+    for (const [uid, val] of Object.entries(usersMap)) {
+      const p = normalizeUserFromRtdb(val, uid)
+      if (!p || p.shadowBanned) continue
+      const sub = receivedMap?.[uid]
+      const children =
+        sub != null && typeof sub === 'object'
+          ? (sub as Record<string, unknown>)
+          : undefined
+      list.push(mergeRatingsIntoProfile(p, children))
+    }
+    return list
+  }, [usersMap, receivedMap])
 
   const players = useMemo(() => sortPlayers(raw), [raw])
 
   useEffect(() => {
     if (!rtdb) {
-      setRaw([])
+      setUsersMap(null)
+      setReceivedMap(null)
       return
     }
-    const r = ref(rtdb, 'users')
-    const unsub = onValue(
-      r,
+    const ur = ref(rtdb, 'users')
+    const rr = ref(rtdb, 'userRatingsReceived')
+    const unsubU = onValue(
+      ur,
       (snap) => {
-        const list: UserProfile[] = []
-        snap.forEach((child) => {
-          const uid = child.key ?? ''
-          const p = normalizeUserFromRtdb(child.val(), uid)
-          if (p && !p.shadowBanned) list.push(p)
-        })
-        setRaw(list)
+        setUsersMap(snap.exists() ? (snap.val() as Record<string, unknown>) : null)
         setError(null)
       },
       (e) => setError(e.message),
     )
-    return () => unsub()
+    const unsubR = onValue(
+      rr,
+      (snap) => {
+        setReceivedMap(snap.exists() ? (snap.val() as Record<string, unknown>) : null)
+      },
+      (e) => setError(e.message),
+    )
+    return () => {
+      unsubU()
+      unsubR()
+    }
   }, [])
 
   return { players, error }
