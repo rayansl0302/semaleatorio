@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { appHttpsCallable } from '../firebase/callable'
-import { functions } from '../firebase/config'
+import { vercelApiCall, vercelApiConfigured } from '../firebase/api'
 
 type Props = {
   open: boolean
@@ -18,15 +17,11 @@ export function RateUserModal({ open, onClose, target, fromUid }: Props) {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!target || !functions || target.uid === fromUid) return
+    if (!target || !vercelApiConfigured() || target.uid === fromUid) return
     setSending(true)
     setMsg(null)
     try {
-      const fn = appHttpsCallable<
-        { toUid: string; communication: number; skill: number; toxicity: number },
-        { ok: boolean }
-      >(functions, 'submitRating')
-      await fn({
+      await vercelApiCall('submitRating', {
         toUid: target.uid,
         communication: comm,
         skill: skill,
@@ -104,15 +99,15 @@ export function RateUserModal({ open, onClose, target, fromUid }: Props) {
           </button>
           <button
             type="submit"
-            disabled={sending || target.uid === fromUid || !functions}
+            disabled={sending || target.uid === fromUid || !vercelApiConfigured()}
             className="flex-1 rounded-lg bg-secondary py-2 text-sm font-semibold text-white disabled:opacity-40"
           >
             {sending ? 'Enviando…' : 'Enviar'}
           </button>
         </div>
-        {!functions && (
+        {!vercelApiConfigured() && (
           <p className="mt-2 text-xs text-amber-500">
-            Firebase Functions indisponível no ambiente atual.
+            API Vercel não configurada (defina VITE_VERCEL_API_URL).
           </p>
         )}
       </form>

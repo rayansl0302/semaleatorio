@@ -1,9 +1,8 @@
 import { getAuth } from 'firebase/auth'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { appHttpsCallable } from '../firebase/callable'
-import { functions } from '../firebase/config'
-import { formatHttpsCallableError } from '../lib/callableErrors'
+import { vercelApiCall, vercelApiConfigured } from '../firebase/api'
+import { formatApiBackendError } from '../lib/callableErrors'
 
 export const RIOT_OAUTH_MESSAGE = 'semaleatorio-riot-oauth' as const
 
@@ -29,17 +28,16 @@ function completeOnce(code: string, state: string) {
   if (!p) {
     p = (async () => {
       try {
-        if (!functions) {
-          return { ok: false as const, error: 'Firebase Functions indisponível.' }
+        if (!vercelApiConfigured()) {
+          return {
+            ok: false as const,
+            error: 'Defina VITE_VERCEL_API_URL no .env (URL do deploy Vercel).',
+          }
         }
-        const fn = appHttpsCallable<
-          { code: string; state: string },
-          { gameName?: string; tagLine?: string }
-        >(functions, 'completeRiotOAuth')
-        await fn({ code, state })
+        await vercelApiCall('completeRiotOAuth', { code, state })
         return { ok: true as const }
       } catch (e) {
-        const msg = formatHttpsCallableError(e)
+        const msg = formatApiBackendError(e)
         return { ok: false as const, error: msg }
       } finally {
         inflight.delete(key)

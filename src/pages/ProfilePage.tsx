@@ -2,12 +2,12 @@ import { doc, getDoc, Timestamp, updateDoc } from 'firebase/firestore'
 import { useEffect, useMemo, useState } from 'react'
 import { Helmet } from 'react-helmet-async'
 import { Link, useSearchParams } from 'react-router-dom'
-import { formatHttpsCallableError } from '../lib/callableErrors'
+import { formatApiBackendError } from '../lib/callableErrors'
 import { LolEloIcon, LolRoleIcon } from '../components/LolIcons'
 import { RateUserModal } from '../components/RateUserModal'
 import { useAuth, persistProfile } from '../contexts/AuthContext'
-import { appHttpsCallable } from '../firebase/callable'
-import { db, functions } from '../firebase/config'
+import { vercelApiCall, vercelApiConfigured } from '../firebase/api'
+import { db } from '../firebase/config'
 import { PLAYER_TAG_OPTIONS, QUEUE_LABELS, ROLES } from '../lib/constants'
 import { isPremiumActive } from '../lib/plan'
 import { getPublicSiteUrl } from '../lib/siteUrl'
@@ -74,15 +74,14 @@ export function ProfilePage() {
   const statsUnlocked = isPremiumActive(profile)
 
   async function payAsaas(product: 'premium_monthly' | 'boost_1h' | 'boost_3h') {
-    if (!functions || !user) return
+    if (!vercelApiConfigured() || !user) return
     setPayLoading(product)
     setPayMsg(null)
     try {
-      const fn = appHttpsCallable<
-        { product: string },
-        { paymentId?: string; invoiceUrl?: string | null }
-      >(functions, 'createAsaasCheckout')
-      const { data } = await fn({ product })
+      const data = await vercelApiCall<{
+        paymentId?: string
+        invoiceUrl?: string | null
+      }>('createAsaasCheckout', { product })
       if (data?.invoiceUrl) {
         window.open(data.invoiceUrl, '_blank', 'noopener,noreferrer')
         setPayMsg('Abra o link de pagamento na nova aba para concluir.')
@@ -127,15 +126,11 @@ export function ProfilePage() {
   }
 
   async function startRiotOAuth() {
-    if (!functions || !user) return
+    if (!vercelApiConfigured() || !user) return
     setRiotOAuthLoading(true)
     setRiotMsg(null)
     try {
-      const fn = appHttpsCallable<Record<string, never>, { url?: string }>(
-        functions,
-        'prepareRiotOAuth',
-      )
-      const { data } = await fn({})
+      const data = await vercelApiCall<{ url?: string }>('prepareRiotOAuth', {})
       const url = data?.url?.trim()
       if (!url) {
         setRiotMsg('Resposta inválida do servidor (sem URL de login).')
@@ -143,7 +138,7 @@ export function ProfilePage() {
       }
       window.location.assign(url)
     } catch (e) {
-      setRiotMsg(formatHttpsCallableError(e))
+      setRiotMsg(formatApiBackendError(e))
     } finally {
       setRiotOAuthLoading(false)
     }
@@ -635,7 +630,7 @@ export function ProfilePage() {
               <p className="mt-1 text-xs text-slate-500">R$ 29,90 / 30 dias</p>
               <button
                 type="button"
-                disabled={!functions || payLoading !== null}
+                disabled={!vercelApiConfigured() || payLoading !== null}
                 onClick={() => void payAsaas('premium_monthly')}
                 className="mt-3 w-full rounded-lg bg-accent py-2 text-sm font-semibold text-black disabled:opacity-50"
               >
@@ -651,7 +646,7 @@ export function ProfilePage() {
             <div className="mt-3 flex flex-wrap gap-2">
               <button
                 type="button"
-                disabled={!functions || payLoading !== null}
+                disabled={!vercelApiConfigured() || payLoading !== null}
                 onClick={() => void payAsaas('boost_1h')}
                 className="rounded-lg bg-primary/20 px-3 py-2 text-xs font-semibold text-primary disabled:opacity-50"
               >
@@ -659,7 +654,7 @@ export function ProfilePage() {
               </button>
               <button
                 type="button"
-                disabled={!functions || payLoading !== null}
+                disabled={!vercelApiConfigured() || payLoading !== null}
                 onClick={() => void payAsaas('boost_3h')}
                 className="rounded-lg bg-primary/20 px-3 py-2 text-xs font-semibold text-primary disabled:opacity-50"
               >

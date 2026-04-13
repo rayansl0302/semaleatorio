@@ -9,7 +9,6 @@ import {
   persistentMultipleTabManager,
   type Firestore,
 } from 'firebase/firestore'
-import { getFunctions } from 'firebase/functions'
 
 const measurementId = import.meta.env.VITE_FIREBASE_MEASUREMENT_ID as
   | string
@@ -103,9 +102,5 @@ function createFirestore(app: FirebaseApp): Firestore {
 
 export const db = fb ? createFirestore(fb.app) : null
 
-const functionsRegion =
-  (import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION as string | undefined)?.trim() ||
-  'us-central1'
-export const functions = fb ? getFunctions(fb.app, functionsRegion) : null
 export const rtdb: Database | null =
   fb && str(databaseURL) ? getDatabase(fb.app) : null
