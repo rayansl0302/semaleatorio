@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useToast } from '../contexts/ToastContext'
 import { vercelApiCall } from '../firebase/api'
 
 type Props = {
@@ -9,6 +10,7 @@ type Props = {
 }
 
 export function RateUserModal({ open, onClose, target, fromUid }: Props) {
+  const toast = useToast()
   const [comm, setComm] = useState(5)
   const [skill, setSkill] = useState(5)
   const [tox, setTox] = useState(1)
@@ -28,10 +30,13 @@ export function RateUserModal({ open, onClose, target, fromUid }: Props) {
         toxicity: tox,
       })
       setMsg('Avaliação enviada. Valeu por ajudar a comunidade!')
+      toast.success('Avaliação enviada. Obrigado!')
       setTimeout(onClose, 1200)
     } catch (e: unknown) {
       const err = e as { message?: string }
-      setMsg(err?.message ?? 'Confira a API (vercel dev / Vercel) e o login.')
+      const m = err?.message ?? 'Confira a API (vercel dev / Vercel) e o login.'
+      setMsg(m)
+      toast.error(m)
     } finally {
       setSending(false)
     }

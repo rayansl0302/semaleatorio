@@ -1,4 +1,5 @@
 import type { UserProfile } from '../types/models'
+import { Copy, MessageCircle, ShieldAlert, Star } from '../lib/icons'
 import { isPremiumActive } from '../lib/plan'
 import { hasSemiAleatorioSeal } from '../lib/seal'
 import { STATUS_LABELS } from '../lib/constants'
@@ -151,15 +152,17 @@ export function PlayerCard({
         <button
           type="button"
           onClick={onCopy}
-          className="flex-1 min-w-[120px] rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-black hover:bg-primary/90"
+          className="flex flex-1 min-w-[120px] items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-black hover:bg-primary/90"
         >
+          <Copy className="h-4 w-4 shrink-0" aria-hidden />
           Copiar nick
         </button>
         <button
           type="button"
           onClick={onCall}
-          className="flex-1 min-w-[100px] rounded-lg border border-border bg-white/5 px-3 py-2 text-sm font-medium text-white hover:bg-white/10"
+          className="flex flex-1 min-w-[100px] items-center justify-center gap-1.5 rounded-lg border border-border bg-white/5 px-3 py-2 text-sm font-medium text-white hover:bg-white/10"
         >
+          <MessageCircle className="h-4 w-4 shrink-0" aria-hidden />
           Chamar
         </button>
         {onFavorite && !isSeed && (
@@ -168,9 +171,15 @@ export function PlayerCard({
             disabled={favoriteDisabled}
             onClick={onFavorite}
             title={favoriteDisabled ? 'Limite do plano free' : undefined}
-            className="rounded-lg border border-border px-3 py-2 text-sm text-slate-300 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex items-center justify-center rounded-lg border border-border px-3 py-2 text-sm text-slate-300 hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {favorited ? '★' : '☆'}
+            <Star
+              className={`h-4 w-4 shrink-0 ${favorited ? 'fill-amber-400 text-amber-400' : ''}`}
+              aria-hidden
+            />
+            <span className="sr-only">
+              {favorited ? 'Remover favorito' : 'Favoritar'}
+            </span>
           </button>
         )}
         {onReport && !isSeed && (
@@ -178,9 +187,10 @@ export function PlayerCard({
             type="button"
             onClick={onReport}
             title="Reportar jogador"
-            className="rounded-lg border border-amber-900/50 px-3 py-2 text-sm text-amber-500/90 hover:bg-amber-950/40"
+            className="inline-flex items-center justify-center rounded-lg border border-amber-900/50 px-3 py-2 text-sm text-amber-500/90 hover:bg-amber-950/40"
           >
-            ⚑
+            <ShieldAlert className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="sr-only">Reportar</span>
           </button>
         )}
       </div>

@@ -1,25 +1,32 @@
-import { collection, getDocs, limit, query, where } from 'firebase/firestore'
+import { get } from 'firebase/database'
 import { Helmet } from 'react-helmet-async'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { db } from '../firebase/config'
+import { useToast } from '../contexts/ToastContext'
+import { rtdb } from '../firebase/config'
+import {
+  normalizeUserFromRtdb,
+  profileSlugIndexRef,
+  userProfileRef,
+} from '../lib/rtdbUserProfile'
 import { hasSemiAleatorioSeal } from '../lib/seal'
 import { BrandLogo } from '../components/BrandLogo'
 import { LolEloIcon, LolRoleIcon } from '../components/LolIcons'
+import { Copy, MessageCircle } from '../lib/icons'
 import { getPublicSiteUrl } from '../lib/siteUrl'
 import type { UserProfile } from '../types/models'
 
 export function PublicProfilePage() {
   const { slug } = useParams<{ slug: string }>()
   const { user, firebaseConfigured } = useAuth()
+  const toast = useToast()
   const navigate = useNavigate()
   const [target, setTarget] = useState<UserProfile | null>(null)
-  const [ambiguous, setAmbiguous] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!db || !slug) {
+    if (!rtdb || !slug) {
       setTarget(null)
       setLoading(false)
       return
@@ -27,18 +34,28 @@ export function PublicProfilePage() {
     let cancelled = false
     ;(async () => {
       setLoading(true)
-      const q = query(
-        collection(db, 'users'),
-        where('profileSlug', '==', slug.toLowerCase()),
-        limit(5),
-      )
-      const snap = await getDocs(q)
-      const list: UserProfile[] = []
-      snap.forEach((d) => list.push(d.data() as UserProfile))
+      const idxSnap = await get(profileSlugIndexRef(rtdb, slug))
       if (cancelled) return
-      if (list.length > 1) setAmbiguous(true)
-      else setAmbiguous(false)
-      const p = list[0] ?? null
+      if (!idxSnap.exists()) {
+        setTarget(null)
+        setLoading(false)
+        return
+      }
+      const idxVal = idxSnap.val() as { uid?: string }
+      const uid = typeof idxVal?.uid === 'string' ? idxVal.uid : ''
+      if (!uid) {
+        setTarget(null)
+        setLoading(false)
+        return
+      }
+      const usrSnap = await get(userProfileRef(rtdb, uid))
+      if (cancelled) return
+      if (!usrSnap.exists()) {
+        setTarget(null)
+        setLoading(false)
+        return
+      }
+      const p = normalizeUserFromRtdb(usrSnap.val(), uid)
       if (p?.shadowBanned) setTarget(null)
       else setTarget(p)
       setLoading(false)
@@ -133,12 +150,6 @@ export function PublicProfilePage() {
         </header>
 
         <main className="mx-auto max-w-lg px-4 py-10">
-          {ambiguous && (
-            <p className="mb-4 rounded-lg bg-amber-500/10 p-3 text-sm text-amber-200">
-              Existe mais de um perfil com este link. Se for seu caso, ajuste o nick
-              ou tag no perfil para um slug único.
-            </p>
-          )}
           <div className="rounded-2xl border border-border bg-card p-6">
             <h1 className="text-2xl font-bold text-white">
               {target.nickname}
@@ -175,17 +186,22 @@ export function PublicProfilePage() {
               <button
                 type="button"
                 onClick={() => {
-                  void navigator.clipboard.writeText(fullNick)
+                  void navigator.clipboard.writeText(fullNick).then(
+                    () => toast.success('Nick copiado.'),
+                    () => toast.error('Não foi possível copiar.'),
+                  )
                 }}
-                className="w-full rounded-xl bg-primary py-3 text-center font-bold text-black"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-center font-bold text-black"
               >
+                <Copy className="h-5 w-5 shrink-0" aria-hidden />
                 Copiar nick completo
               </button>
               {user && user.uid !== target.uid ? (
                 <Link
                   to={`/app/mensagens?com=${encodeURIComponent(target.uid)}`}
-                  className="w-full rounded-xl border border-secondary/50 bg-secondary/15 py-3 text-center text-sm font-semibold text-white transition hover:bg-secondary/25"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-secondary/50 bg-secondary/15 py-3 text-center text-sm font-semibold text-white transition hover:bg-secondary/25"
                 >
+                  <MessageCircle className="h-4 w-4 shrink-0" aria-hidden />
                   Enviar mensagem
                 </Link>
               ) : !user ? (

@@ -1,6 +1,7 @@
-import { doc, getDoc } from 'firebase/firestore'
+import { get } from 'firebase/database'
 import { useEffect, useState } from 'react'
-import { db } from '../firebase/config'
+import { rtdb } from '../firebase/config'
+import { normalizeUserFromRtdb, userProfileRef } from '../lib/rtdbUserProfile'
 import { LolEloIcon, LolRoleIcon } from './LolIcons'
 import { QUEUE_LABELS } from '../lib/constants'
 import type { PostDoc, UserProfile } from '../types/models'
@@ -14,10 +15,12 @@ export function PostCard({ post, onAuthorClick }: Props) {
   const [author, setAuthor] = useState<UserProfile | null>(null)
 
   useEffect(() => {
-    if (!db || !post.uid) return
+    if (!rtdb || !post.uid) return
     let cancelled = false
-    getDoc(doc(db, 'users', post.uid)).then((snap) => {
-      if (!cancelled && snap.exists()) setAuthor(snap.data() as UserProfile)
+    get(userProfileRef(rtdb, post.uid)).then((snap) => {
+      if (cancelled || !snap.exists()) return
+      const p = normalizeUserFromRtdb(snap.val(), post.uid)
+      if (p) setAuthor(p)
     })
     return () => {
       cancelled = true

@@ -1,4 +1,4 @@
-import { arrayRemove, arrayUnion, doc, updateDoc } from 'firebase/firestore'
+import { get, update } from 'firebase/database'
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { CallModal } from '../components/CallModal'
@@ -11,7 +11,9 @@ import {
   type FilterState,
 } from '../components/SidebarFilters'
 import { useAuth } from '../contexts/AuthContext'
-import { db } from '../firebase/config'
+import { useToast } from '../contexts/ToastContext'
+import { rtdb } from '../firebase/config'
+import { normalizeUserFromRtdb, userProfileRef } from '../lib/rtdbUserProfile'
 import { useAppConfig } from '../hooks/useAppConfig'
 import { usePlayers } from '../hooks/usePlayers'
 import { useSeedProfiles } from '../hooks/useSeedProfiles'
@@ -23,6 +25,7 @@ import { Helmet } from 'react-helmet-async'
 
 export function PlayersPage() {
   const { user, profile, refreshProfile } = useAuth()
+  const toast = useToast()
   const navigate = useNavigate()
   const appConfig = useAppConfig()
   const seeds = useSeedProfiles()
@@ -77,36 +80,46 @@ export function PlayersPage() {
     const t = `${p.nickname}#${p.tag}`
     try {
       await navigator.clipboard.writeText(t)
+      toast.success('Nick copiado para a área de transferência.')
     } catch {
       window.prompt('Copie o nick:', t)
     }
   }
 
   async function toggleFavorite(target: UserProfile) {
-    if (!user || !db || !profile) return
-    const favs = profile.favoriteUids ?? []
+    if (!user || !rtdb || !profile) return
+    const pref = userProfileRef(rtdb, user.uid)
+    const snap = await get(pref)
+    const cur = snap.exists()
+      ? normalizeUserFromRtdb(snap.val(), user.uid)
+      : null
+    if (!cur) return
+    const favs = cur.favoriteUids ?? []
     const isFav = favs.includes(target.uid)
     if (!isFav && !isPremium && favs.length >= FREE_FAVORITES_LIMIT) {
-      alert(
-        `Plano free: até ${FREE_FAVORITES_LIMIT} favoritos. Premium = favoritos ilimitados.`,
+      toast.info(
+        `Plano free: até ${FREE_FAVORITES_LIMIT} favoritos. Premium = ilimitados.`,
       )
       return
     }
-    const ref = doc(db, 'users', user.uid)
-    await updateDoc(ref, {
-      favoriteUids: isFav ? arrayRemove(target.uid) : arrayUnion(target.uid),
-    })
+    const next = isFav
+      ? favs.filter((id) => id !== target.uid)
+      : [...favs, target.uid]
+    await update(pref, { favoriteUids: next })
     await refreshProfile()
+    toast.success(isFav ? 'Removido dos favoritos.' : 'Adicionado aos favoritos.')
   }
 
-  if (!db) {
+  if (!rtdb) {
     return (
       <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-amber-100">
         <h1 className="text-lg font-semibold">Configure o Firebase</h1>
         <p className="mt-2 text-sm opacity-90">
           Copie <code className="rounded bg-black/30 px-1">.env.example</code> para{' '}
           <code className="rounded bg-black/30 px-1">.env</code> e preencha com
-          as chaves do projeto Firebase. Depois rode{' '}
+          as chaves do projeto Firebase, incluindo{' '}
+          <code className="rounded bg-black/30 px-1">VITE_FIREBASE_DATABASE_URL</code>{' '}
+          (Realtime Database). Depois rode{' '}
           <code className="rounded bg-black/30 px-1">npm run dev</code> de novo.
         </p>
       </div>

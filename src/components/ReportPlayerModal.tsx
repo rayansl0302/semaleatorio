@@ -1,6 +1,7 @@
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore'
+import { push, ref, serverTimestamp, set } from 'firebase/database'
 import { useState } from 'react'
-import { db } from '../firebase/config'
+import { useToast } from '../contexts/ToastContext'
+import { rtdb } from '../firebase/config'
 import type { UserProfile } from '../types/models'
 
 const REASONS = [
@@ -18,6 +19,7 @@ type Props = {
 }
 
 export function ReportPlayerModal({ open, target, fromUid, onClose }: Props) {
+  const toast = useToast()
   const [reason, setReason] = useState<string>('toxic')
   const [detail, setDetail] = useState('')
   const [sending, setSending] = useState(false)
@@ -25,11 +27,12 @@ export function ReportPlayerModal({ open, target, fromUid, onClose }: Props) {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!db || !target || target.uid === fromUid) return
+    if (!rtdb || !target || target.uid === fromUid) return
     setSending(true)
     setMsg(null)
     try {
-      await addDoc(collection(db, 'reports'), {
+      const newRef = push(ref(rtdb, 'reports'))
+      await set(newRef, {
         fromUid,
         toUid: target.uid,
         reason,
@@ -37,9 +40,12 @@ export function ReportPlayerModal({ open, target, fromUid, onClose }: Props) {
         createdAt: serverTimestamp(),
       })
       setMsg('Recebemos sua denúncia. A moderação vai analisar.')
+      toast.success('Denúncia enviada.')
       setTimeout(onClose, 1500)
     } catch {
-      setMsg('Não foi possível enviar. Tente de novo.')
+      const m = 'Não foi possível enviar. Tente de novo.'
+      setMsg(m)
+      toast.error(m)
     } finally {
       setSending(false)
     }

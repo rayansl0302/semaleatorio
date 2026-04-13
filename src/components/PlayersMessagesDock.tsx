@@ -1,21 +1,11 @@
-import {
-  addDoc,
-  and,
-  collection,
-  onSnapshot,
-  or,
-  orderBy,
-  query,
-  serverTimestamp,
-  where,
-} from 'firebase/firestore'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { db } from '../firebase/config'
+import { rtdb } from '../firebase/config'
 import { useMessageThreads } from '../hooks/useMessageThreads'
 import { usePlayers } from '../hooks/usePlayers'
 import { extractLikelyFirebaseUid, threadIdFor } from '../lib/messages'
+import { pushMessage, subscribeThreadMessages } from '../lib/rtdbMessages'
 import type { MessageDoc, UserProfile } from '../types/models'
 
 function formatDockTime(createdAt: MessageDoc['createdAt']): string {
@@ -47,42 +37,21 @@ function DockChatPanel({ myUid, peerUid, peerLabel, onBack }: DockChatProps) {
   const tid = useMemo(() => threadIdFor(myUid, peerUid), [myUid, peerUid])
 
   useEffect(() => {
-    if (!db || !tid) {
+    if (!rtdb || !tid) {
       setMessages([])
       return
     }
-    const uid = myUid
-    const q = query(
-      collection(db, 'messages'),
-      or(
-        and(where('threadId', '==', tid), where('fromUid', '==', uid)),
-        and(where('threadId', '==', tid), where('toUid', '==', uid)),
-      ),
-      orderBy('createdAt', 'asc'),
-    )
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const list: MessageDoc[] = []
-        snap.forEach((d) =>
-          list.push({ id: d.id, ...(d.data() as Omit<MessageDoc, 'id'>) }),
-        )
-        setMessages(list)
-      },
-      () => setMessages([]),
-    )
-    return () => unsub()
-  }, [tid, myUid])
+    return subscribeThreadMessages(rtdb, tid, setMessages)
+  }, [tid])
 
   async function send(e: React.FormEvent) {
     e.preventDefault()
-    if (!db || !text.trim()) return
-    await addDoc(collection(db, 'messages'), {
+    if (!rtdb || !text.trim()) return
+    await pushMessage(rtdb, {
       threadId: tid,
       fromUid: myUid,
       toUid: peerUid,
       text: text.trim(),
-      createdAt: serverTimestamp(),
     })
     setText('')
   }
@@ -157,7 +126,7 @@ export function PlayersMessagesDock() {
   const [selectedPeer, setSelectedPeer] = useState<string | null>(null)
   const [dockPasteHint, setDockPasteHint] = useState<string | null>(null)
 
-  if (!user || !db) return null
+  if (!user || !rtdb) return null
 
   function labelFor(uid: string): string {
     const p = players.find((x) => x.uid === uid)

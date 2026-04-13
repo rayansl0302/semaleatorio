@@ -1,11 +1,11 @@
+import admin from 'firebase-admin'
 import { requireUid } from '../vercel-api/lib/auth.js'
-import { getAdmin, getDb } from '../vercel-api/lib/admin.js'
+import { getRtdb } from '../vercel-api/lib/admin.js'
 import { ApiError } from '../vercel-api/lib/errors.js'
 import { postHandler } from '../vercel-api/lib/handler.js'
 
 export default postHandler(async (req, data) => {
-  const admin = getAdmin()
-  const db = getDb()
+  const rtdb = getRtdb()
   const fromUid = await requireUid(req)
   const toUid = String(data.toUid ?? '')
   const communication = Number(data.communication)
@@ -23,34 +23,36 @@ export default postHandler(async (req, data) => {
   }
   const overall = (communication + skill + (6 - toxicity)) / 3
 
-  const userRef = db.doc(`users/${toUid}`)
-  const ratingRef = db.collection('ratings').doc()
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(userRef)
-    if (!snap.exists) {
-      throw new ApiError(404, 'not-found', 'Usuário não encontrado.')
-    }
-    const cur = snap.data() as { ratingAvg?: number; ratingCount?: number }
-    const prevN = cur.ratingCount ?? 0
-    const prevAvg = cur.ratingAvg ?? 0
-    const count = prevN + 1
-    const newAvg = prevN === 0 ? overall : (prevAvg * prevN + overall) / count
-    const semiAleatorio = count >= 5 && newAvg >= 4.2
-    tx.set(ratingRef, {
-      fromUid,
-      toUid,
-      communication,
-      skill,
-      toxicity,
-      overall,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    })
-    tx.update(userRef, {
-      ratingAvg: newAvg,
-      ratingCount: count,
-      semiAleatorio,
-    })
-  })
+  const userRef = rtdb.ref(`users/${toUid}`)
+  const userSnap = await userRef.once('value')
+  if (!userSnap.exists()) {
+    throw new ApiError(404, 'not-found', 'Usuário não encontrado.')
+  }
+  const cur = userSnap.val() as { ratingAvg?: number; ratingCount?: number }
+  const prevN = cur.ratingCount ?? 0
+  const prevAvg = cur.ratingAvg ?? 0
+  const count = prevN + 1
+  const newAvg = prevN === 0 ? overall : (prevAvg * prevN + overall) / count
+  const semiAleatorio = count >= 5 && newAvg >= 4.2
+
+  const ratingKey = rtdb.ref('ratings').push().key
+  if (!ratingKey) {
+    throw new ApiError(500, 'internal', 'Falha ao criar id da avaliação.')
+  }
+
+  const patch: Record<string, unknown> = {
+    [`users/${toUid}/ratingAvg`]: newAvg,
+    [`users/${toUid}/ratingCount`]: count,
+    [`users/${toUid}/semiAleatorio`]: semiAleatorio,
+    [`ratings/${ratingKey}/fromUid`]: fromUid,
+    [`ratings/${ratingKey}/toUid`]: toUid,
+    [`ratings/${ratingKey}/communication`]: communication,
+    [`ratings/${ratingKey}/skill`]: skill,
+    [`ratings/${ratingKey}/toxicity`]: toxicity,
+    [`ratings/${ratingKey}/overall`]: overall,
+    [`ratings/${ratingKey}/createdAt`]: admin.database.ServerValue.TIMESTAMP,
+  }
+  await rtdb.ref().update(patch)
 
   return { ok: true }
 })

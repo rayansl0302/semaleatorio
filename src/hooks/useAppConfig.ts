@@ -1,9 +1,8 @@
-import { doc, onSnapshot } from 'firebase/firestore'
+import { onValue, ref } from 'firebase/database'
 import { useEffect, useState } from 'react'
-import { db } from '../firebase/config'
+import { rtdb } from '../firebase/config'
 
 export type AppPublicConfig = {
-  /** Piso para texto de presença (meta social); não altera dados reais */
   onlineCountFloor: number
 }
 
@@ -15,16 +14,16 @@ export function useAppConfig() {
   const [config, setConfig] = useState<AppPublicConfig>(DEFAULTS)
 
   useEffect(() => {
-    if (!db) return
-    const ref = doc(db, 'config', 'app')
-    return onSnapshot(
-      ref,
+    if (!rtdb) return
+    const r = ref(rtdb, 'config/app')
+    return onValue(
+      r,
       (snap) => {
         if (!snap.exists()) {
           setConfig(DEFAULTS)
           return
         }
-        const d = snap.data() as Partial<AppPublicConfig>
+        const d = snap.val() as Partial<AppPublicConfig>
         setConfig({
           onlineCountFloor:
             typeof d.onlineCountFloor === 'number'

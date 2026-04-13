@@ -2,6 +2,8 @@
 # (Não vão para o .env do Vite / repositório.)
 
 FIREBASE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
+# Mesma URL do Realtime Database que no app (ex.: https://PROJETO-default-rtdb.firebaseio.com)
+FIREBASE_DATABASE_URL=
 
 RIOT_API_KEY=
 RIOT_PLATFORM_ROUTING=br1

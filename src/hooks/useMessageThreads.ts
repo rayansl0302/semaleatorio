@@ -1,13 +1,6 @@
-import {
-  collection,
-  limit,
-  onSnapshot,
-  orderBy,
-  query,
-  where,
-} from 'firebase/firestore'
 import { useEffect, useState } from 'react'
-import { db } from '../firebase/config'
+import { rtdb } from '../firebase/config'
+import { subscribeUserMessages } from '../lib/rtdbMessages'
 import { threadIdFor } from '../lib/messages'
 import type { MessageDoc } from '../types/models'
 
@@ -48,7 +41,7 @@ export function useMessageThreads(myUid: string | undefined) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!db || !myUid) {
+    if (!rtdb || !myUid) {
       setThreads([])
       setError(null)
       return
@@ -62,41 +55,25 @@ export function useMessageThreads(myUid: string | undefined) {
       setError(null)
     }
 
-    const qSent = query(
-      collection(db, 'messages'),
-      where('fromUid', '==', myUid),
-      orderBy('createdAt', 'desc'),
-      limit(80),
-    )
-    const qRecv = query(
-      collection(db, 'messages'),
-      where('toUid', '==', myUid),
-      orderBy('createdAt', 'desc'),
-      limit(80),
-    )
-
-    const unsubSent = onSnapshot(
-      qSent,
-      (snap) => {
-        sent = []
-        snap.forEach((d) =>
-          sent.push({ id: d.id, ...(d.data() as Omit<MessageDoc, 'id'>) }),
-        )
+    const unsubSent = subscribeUserMessages(
+      rtdb,
+      'fromUid',
+      myUid,
+      80,
+      (list) => {
+        sent = list
         flush()
       },
-      (e) => setError(e.message),
     )
-
-    const unsubRecv = onSnapshot(
-      qRecv,
-      (snap) => {
-        recv = []
-        snap.forEach((d) =>
-          recv.push({ id: d.id, ...(d.data() as Omit<MessageDoc, 'id'>) }),
-        )
+    const unsubRecv = subscribeUserMessages(
+      rtdb,
+      'toUid',
+      myUid,
+      80,
+      (list) => {
+        recv = list
         flush()
       },
-      (e) => setError(e.message),
     )
 
     return () => {

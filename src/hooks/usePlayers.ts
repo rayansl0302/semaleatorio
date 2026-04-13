@@ -1,7 +1,8 @@
-import { collection, onSnapshot, query, type Unsubscribe } from 'firebase/firestore'
+import { onValue, ref } from 'firebase/database'
 import { useEffect, useMemo, useState } from 'react'
-import { db } from '../firebase/config'
+import { rtdb } from '../firebase/config'
 import { eloRank } from '../lib/constants'
+import { normalizeUserFromRtdb } from '../lib/rtdbUserProfile'
 import { isPremiumActive } from '../lib/plan'
 import type { UserProfile } from '../types/models'
 
@@ -35,35 +36,26 @@ export function usePlayers() {
   const players = useMemo(() => sortPlayers(raw), [raw])
 
   useEffect(() => {
-    if (!db) {
+    if (!rtdb) {
       setRaw([])
       return
     }
-    const q = query(collection(db, 'users'))
-    let unsub: Unsubscribe | undefined
-    try {
-      unsub = onSnapshot(
-        q,
-        (snap) => {
-          const list: UserProfile[] = []
-          snap.forEach((d) => {
-            const p = d.data() as Partial<UserProfile>
-            if (p.shadowBanned) return
-            const elo =
-              typeof p.elo === 'string' && p.elo.trim() !== ''
-                ? p.elo.trim()
-                : 'UNRANKED'
-            list.push({ ...p, uid: d.id, elo } as UserProfile)
-          })
-          setRaw(list)
-          setError(null)
-        },
-        (e) => setError(e.message),
-      )
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Erro Firestore')
-    }
-    return () => unsub?.()
+    const r = ref(rtdb, 'users')
+    const unsub = onValue(
+      r,
+      (snap) => {
+        const list: UserProfile[] = []
+        snap.forEach((child) => {
+          const uid = child.key ?? ''
+          const p = normalizeUserFromRtdb(child.val(), uid)
+          if (p && !p.shadowBanned) list.push(p)
+        })
+        setRaw(list)
+        setError(null)
+      },
+      (e) => setError(e.message),
+    )
+    return () => unsub()
   }, [])
 
   return { players, error }

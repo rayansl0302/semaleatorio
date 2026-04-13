@@ -68,12 +68,14 @@ function parseExternalRef(ref) {
     return { uid: parts[1], product: parts[2] };
 }
 async function ensureAsaasCustomer(uid, email, name) {
-    const db = admin.firestore();
-    const userRef = db.doc(`users/${uid}`);
+    const rtdb = admin.database();
+    const userRef = rtdb.ref(`users/${uid}`);
     const snap = await userRef.get();
-    const existing = snap.data()?.asaasCustomerId;
-    if (existing)
-        return existing;
+    if (snap.exists()) {
+        const existing = snap.val()?.asaasCustomerId;
+        if (existing)
+            return existing;
+    }
     const base = asaasApiBase.value().replace(/\/$/, '');
     const res = await fetch(`${base}/customers`, {
         method: 'POST',
@@ -153,7 +155,7 @@ exports.asaasWebhook = (0, https_1.onRequest)({ secrets: [asaasWebhookToken], co
         return;
     }
     const body = req.body;
-    const db = admin.firestore();
+    const rtdb = admin.database();
     try {
         const event = body.event ?? '';
         const payment = body.payment;
@@ -163,27 +165,27 @@ exports.asaasWebhook = (0, https_1.onRequest)({ secrets: [asaasWebhookToken], co
             return;
         }
         const idemId = `asaas_${payId}`;
-        const idemRef = db.doc(`webhook_events/${idemId}`);
+        const idemRef = rtdb.ref(`webhook_events/${idemId}`);
         const idemSnap = await idemRef.get();
-        if (idemSnap.exists) {
+        if (idemSnap.exists()) {
             res.status(200).json({ ok: true, duplicate: true });
             return;
         }
         const ext = parseExternalRef(String(payment?.externalReference ?? ''));
         if (!ext || !ext.uid) {
             await idemRef.set({
-                receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                receivedAt: Date.now(),
                 event,
                 note: 'no_external_ref',
             });
             res.status(200).json({ ok: true, skip: true });
             return;
         }
-        const userRef = db.doc(`users/${ext.uid}`);
+        const userRef = rtdb.ref(`users/${ext.uid}`);
         const userSnap = await userRef.get();
-        if (!userSnap.exists) {
+        if (!userSnap.exists()) {
             await idemRef.set({
-                receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                receivedAt: Date.now(),
                 event,
                 note: 'user_missing',
             });
@@ -194,22 +196,21 @@ exports.asaasWebhook = (0, https_1.onRequest)({ secrets: [asaasWebhookToken], co
         if (ext.product === 'premium_monthly') {
             const days = 30;
             updates.plan = 'premium';
-            updates.premiumUntil = admin.firestore.Timestamp.fromMillis(Date.now() + days * 86400000);
+            updates.premiumUntil = Date.now() + days * 86400000;
         }
         else if (ext.product === 'boost_1h' || ext.product === 'boost_3h') {
             const hours = ext.product === 'boost_1h' ? 1 : 3;
-            const cur = userSnap.data()?.boostUntil;
+            const ud = userSnap.val();
+            const cur = typeof ud.boostUntil === 'number' ? ud.boostUntil : undefined;
             const now = Date.now();
-            const base = cur && typeof cur.toMillis === 'function'
-                ? Math.max(now, cur.toMillis())
-                : now;
-            updates.boostUntil = admin.firestore.Timestamp.fromMillis(base + hours * 3600000);
+            const base = cur != null ? Math.max(now, cur) : now;
+            updates.boostUntil = base + hours * 3600000;
         }
         if (Object.keys(updates).length > 0) {
             await userRef.update(updates);
         }
         await idemRef.set({
-            receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+            receivedAt: Date.now(),
             event,
             paymentId: payId,
             uid: ext.uid,

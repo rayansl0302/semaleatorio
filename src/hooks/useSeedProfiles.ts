@@ -1,6 +1,6 @@
-import { collection, onSnapshot, type Unsubscribe } from 'firebase/firestore'
+import { onValue, ref } from 'firebase/database'
 import { useEffect, useState } from 'react'
-import { db } from '../firebase/config'
+import { rtdb } from '../firebase/config'
 import type { PlayerListItem, UserProfile } from '../types/models'
 
 type SeedDoc = Omit<UserProfile, 'uid'> & { active?: boolean }
@@ -9,30 +9,26 @@ export function useSeedProfiles() {
   const [seeds, setSeeds] = useState<PlayerListItem[]>([])
 
   useEffect(() => {
-    if (!db) {
+    if (!rtdb) {
       setSeeds([])
       return
     }
-    const col = collection(db, 'seed_profiles')
-    let unsub: Unsubscribe | undefined
-    try {
-      unsub = onSnapshot(col, (snap) => {
-        const list: PlayerListItem[] = []
-        snap.forEach((d) => {
-          const data = d.data() as SeedDoc
-          if (data.active === false) return
-          list.push({
-            ...(data as UserProfile),
-            uid: `seed_${d.id}`,
-            isSeed: true,
-          })
+    const r = ref(rtdb, 'seed_profiles')
+    const unsub = onValue(r, (snap) => {
+      const list: PlayerListItem[] = []
+      snap.forEach((child) => {
+        const data = child.val() as SeedDoc
+        if (data.active === false) return
+        const key = child.key ?? ''
+        list.push({
+          ...(data as UserProfile),
+          uid: `seed_${key}`,
+          isSeed: true,
         })
-        setSeeds(list)
       })
-    } catch {
-      setSeeds([])
-    }
-    return () => unsub?.()
+      setSeeds(list)
+    })
+    return () => unsub()
   }, [])
 
   return seeds

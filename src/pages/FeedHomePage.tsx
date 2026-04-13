@@ -5,7 +5,7 @@ import { PostCard } from '../components/PostCard'
 import { PostComposer } from '../components/PostComposer'
 import { LolEloIcon } from '../components/LolIcons'
 import { useAuth } from '../contexts/AuthContext'
-import { db } from '../firebase/config'
+import { rtdb } from '../firebase/config'
 import { useAppConfig } from '../hooks/useAppConfig'
 import { usePlayers } from '../hooks/usePlayers'
 import { usePosts } from '../hooks/usePosts'
@@ -38,12 +38,13 @@ export function FeedHomePage() {
       .map((x) => x.p)
   }, [players])
 
-  if (!db) {
+  if (!rtdb) {
     return (
       <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-amber-100">
         <h1 className="text-lg font-semibold">Configure o Firebase</h1>
         <p className="mt-2 text-sm opacity-90">
-          Preencha o <code className="rounded bg-black/30 px-1">.env</code> para ver
+          Preencha o <code className="rounded bg-black/30 px-1">.env</code>, incluindo{' '}
+          <code className="rounded bg-black/30 px-1">VITE_FIREBASE_DATABASE_URL</code>, para ver
           o feed e o mural.
         </p>
       </div>

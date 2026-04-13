@@ -21,6 +21,12 @@ export function authErrorMessage(code: string | undefined): string {
       return 'Login com Google cancelado.'
     case 'auth/network-request-failed':
       return 'Falha de rede. Verifique sua conexão.'
+    case 'auth/operation-not-allowed':
+      return 'Login com e-mail não está ativo no Firebase. Ative “E-mail/senha” em Authentication → Sign-in method.'
+    case 'auth/unauthorized-domain':
+      return 'Este domínio não está autorizado. Em Firebase → Authentication → Settings, adicione o host da Vercel (ex.: seu-projeto.vercel.app) e o domínio customizado.'
+    case 'auth/invalid-api-key':
+      return 'Chave da API Firebase inválida ou restrita. Confira VITE_FIREBASE_API_KEY e restrições no Google Cloud Console.'
     default:
       return 'Não foi possível concluir. Tente de novo.'
   }

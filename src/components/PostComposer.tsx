@@ -1,6 +1,8 @@
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore'
+import { push, ref, serverTimestamp, set } from 'firebase/database'
 import { useState } from 'react'
-import { db } from '../firebase/config'
+import { useToast } from '../contexts/ToastContext'
+import { rtdb } from '../firebase/config'
+import { Send } from '../lib/icons'
 import { LolEloIcon, LolRoleIcon } from './LolIcons'
 import { ELO_ORDER, ROLES } from '../lib/constants'
 import type { QueueType } from '../types/models'
@@ -11,6 +13,7 @@ type Props = {
 }
 
 export function PostComposer({ uid, onCreated }: Props) {
+  const toast = useToast()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [eloMin, setEloMin] = useState('GOLD')
@@ -21,11 +24,12 @@ export function PostComposer({ uid, onCreated }: Props) {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!db || !title.trim()) return
+    if (!rtdb || !title.trim()) return
     setSending(true)
     setErr(null)
     try {
-      await addDoc(collection(db, 'posts'), {
+      const newRef = push(ref(rtdb, 'posts'))
+      await set(newRef, {
         uid,
         title: title.trim(),
         description: description.trim(),
@@ -36,9 +40,13 @@ export function PostComposer({ uid, onCreated }: Props) {
       })
       setTitle('')
       setDescription('')
+      toast.success('Post publicado no feed.')
       onCreated?.()
     } catch {
-      setErr('Não foi possível publicar. Verifique as regras do Firestore.')
+      const msg =
+        'Não foi possível publicar. Verifique as regras do Realtime Database.'
+      setErr(msg)
+      toast.error(msg)
     } finally {
       setSending(false)
     }
@@ -110,8 +118,9 @@ export function PostComposer({ uid, onCreated }: Props) {
       <button
         type="submit"
         disabled={sending}
-        className="mt-3 w-full rounded-lg bg-accent py-2 text-sm font-semibold text-black hover:bg-amber-400 disabled:opacity-50"
+        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-accent py-2 text-sm font-semibold text-black hover:bg-amber-400 disabled:opacity-50"
       >
+        <Send className="h-4 w-4 shrink-0" aria-hidden />
         {sending ? 'Publicando…' : 'Publicar no feed'}
       </button>
     </form>

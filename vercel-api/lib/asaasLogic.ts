@@ -1,4 +1,4 @@
-import { getAdmin, getDb } from './admin.js'
+import { getAdmin, getRtdb } from './admin.js'
 import { ApiError } from './errors.js'
 
 const PRICES_BRL: Record<string, number> = {
@@ -35,11 +35,14 @@ async function ensureAsaasCustomer(
   apiKey: string,
   baseUrl: string,
 ): Promise<string> {
-  const db = getDb()
-  const userRef = db.doc(`users/${uid}`)
-  const snap = await userRef.get()
-  const existing = snap.data()?.asaasCustomerId as string | undefined
-  if (existing) return existing
+  const rtdb = getRtdb()
+  const userRef = rtdb.ref(`users/${uid}`)
+  const snap = await userRef.once('value')
+  if (snap.exists()) {
+    const v = snap.val() as { asaasCustomerId?: string }
+    if (typeof v?.asaasCustomerId === 'string' && v.asaasCustomerId)
+      return v.asaasCustomerId
+  }
 
   const base = baseUrl.replace(/\/$/, '')
   const res = await fetch(`${base}/customers`, {
@@ -129,8 +132,8 @@ export async function processAsaasWebhook(
     throw new ApiError(401, 'unauthenticated', 'Unauthorized')
   }
 
-  const db = getDb()
-  const admin = getAdmin()
+  const rtdb = getRtdb()
+  const adm = getAdmin()
 
   const event = String(body.event ?? '')
   const payment = body.payment as
@@ -143,62 +146,58 @@ export async function processAsaasWebhook(
   }
 
   const idemId = `asaas_${payId}`
-  const idemRef = db.doc(`webhook_events/${idemId}`)
-  const idemSnap = await idemRef.get()
-  if (idemSnap.exists) {
+  const idemRef = rtdb.ref(`webhook_events/${idemId}`)
+  const idemSnap = await idemRef.once('value')
+  if (idemSnap.exists()) {
     return { ok: true, duplicate: true }
   }
 
   const ext = parseExternalRef(String(payment?.externalReference ?? ''))
   if (!ext || !ext.uid) {
     await idemRef.set({
-      receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+      receivedAt: adm.database.ServerValue.TIMESTAMP,
       event,
       note: 'no_external_ref',
     })
     return { ok: true, skip: true }
   }
 
-  const userRef = db.doc(`users/${ext.uid}`)
-  const userSnap = await userRef.get()
-  if (!userSnap.exists) {
+  const userRef = rtdb.ref(`users/${ext.uid}`)
+  const userSnap = await userRef.once('value')
+  if (!userSnap.exists()) {
     await idemRef.set({
-      receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+      receivedAt: adm.database.ServerValue.TIMESTAMP,
       event,
       note: 'user_missing',
     })
     return { ok: true, skip: true }
   }
 
+  const userVal = userSnap.val() as Record<string, unknown>
   const updates: Record<string, unknown> = {}
 
   if (ext.product === 'premium_monthly') {
     const days = 30
     updates.plan = 'premium'
-    updates.premiumUntil = admin.firestore.Timestamp.fromMillis(
-      Date.now() + days * 86400000,
-    )
+    updates.premiumUntil = Date.now() + days * 86400000
   } else if (ext.product === 'boost_1h' || ext.product === 'boost_3h') {
     const hours = ext.product === 'boost_1h' ? 1 : 3
-    const cur = userSnap.data()?.boostUntil as
-      | admin.firestore.Timestamp
-      | undefined
+    const curRaw = userVal.boostUntil
+    const curMs =
+      typeof curRaw === 'number' && Number.isFinite(curRaw) ? curRaw : 0
     const now = Date.now()
-    const base =
-      cur && typeof cur.toMillis === 'function'
-        ? Math.max(now, cur.toMillis())
-        : now
-    updates.boostUntil = admin.firestore.Timestamp.fromMillis(
-      base + hours * 3600000,
-    )
+    const base = curMs > 0 ? Math.max(now, curMs) : now
+    updates.boostUntil = base + hours * 3600000
   }
+
+  updates.lastOnline = adm.database.ServerValue.TIMESTAMP
 
   if (Object.keys(updates).length > 0) {
     await userRef.update(updates)
   }
 
   await idemRef.set({
-    receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+    receivedAt: adm.database.ServerValue.TIMESTAMP,
     event,
     paymentId: payId,
     uid: ext.uid,

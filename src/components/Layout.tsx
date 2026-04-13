@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import {
   Link,
   NavLink,
@@ -9,17 +10,24 @@ import {
 import { BrandLogo } from './BrandLogo'
 import { RiotLegalNotice } from './RiotLegalNotice'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 import { useFcmRegistration } from '../hooks/useFcmRegistration'
+import { Home, LogOut, MessageCircle, User, Users } from '../lib/icons'
 
 const navCls = ({ isActive }: { isActive: boolean }) =>
   `rounded-lg px-3 py-2 text-sm font-medium ${
     isActive ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white'
   }`
 
+function NavIcon({ children }: { children: ReactNode }) {
+  return <span className="inline-flex shrink-0 [&_svg]:h-4 [&_svg]:w-4">{children}</span>
+}
+
 export function Layout() {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, loading, firebaseConfigured, logout } = useAuth()
+  const toast = useToast()
   useFcmRegistration(user)
 
   const entrarHref = `/entrar?redirect=${encodeURIComponent(
@@ -56,10 +64,20 @@ export function Layout() {
             </Link>
             <nav className="flex flex-wrap items-center gap-1">
             <NavLink to="/app" className={navCls} end>
-              Início
+              <span className="inline-flex items-center gap-1.5">
+                <NavIcon>
+                  <Home aria-hidden />
+                </NavIcon>
+                Início
+              </span>
             </NavLink>
             <NavLink to="/app/jogadores" className={navCls}>
-              Jogadores
+              <span className="inline-flex items-center gap-1.5">
+                <NavIcon>
+                  <Users aria-hidden />
+                </NavIcon>
+                Jogadores
+              </span>
             </NavLink>
             {!user && (
               <Link
@@ -72,10 +90,20 @@ export function Layout() {
             {user && (
               <>
                 <NavLink to="/app/perfil" className={navCls}>
-                  Perfil
+                  <span className="inline-flex items-center gap-1.5">
+                    <NavIcon>
+                      <User aria-hidden />
+                    </NavIcon>
+                    Perfil
+                  </span>
                 </NavLink>
                 <NavLink to="/app/mensagens" className={navCls}>
-                  Mensagens
+                  <span className="inline-flex items-center gap-1.5">
+                    <NavIcon>
+                      <MessageCircle aria-hidden />
+                    </NavIcon>
+                    Mensagens
+                  </span>
                 </NavLink>
               </>
             )}
@@ -93,10 +121,14 @@ export function Layout() {
               <button
                 type="button"
                 onClick={() => {
-                  void logout().then(() => navigate('/', { replace: true }))
+                  void logout().then(() => {
+                    toast.success('Sessão encerrada.')
+                    navigate('/', { replace: true })
+                  })
                 }}
-                className="rounded-lg px-3 py-2 text-sm text-slate-400 hover:bg-white/5 hover:text-white"
+                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-slate-400 hover:bg-white/5 hover:text-white"
               >
+                <LogOut className="h-4 w-4 shrink-0 opacity-80" aria-hidden />
                 Sair
               </button>
             )}

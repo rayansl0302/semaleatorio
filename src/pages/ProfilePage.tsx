@@ -1,30 +1,33 @@
-import { doc, getDoc, Timestamp, updateDoc } from 'firebase/firestore'
-import { useEffect, useMemo, useState } from 'react'
+import { Timestamp } from 'firebase/firestore'
+import { get } from 'firebase/database'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Helmet } from 'react-helmet-async'
 import { Link, useSearchParams } from 'react-router-dom'
 import { formatApiBackendError } from '../lib/callableErrors'
 import { LolEloIcon, LolRoleIcon } from '../components/LolIcons'
 import { RateUserModal } from '../components/RateUserModal'
-import { useAuth, persistProfile } from '../contexts/AuthContext'
+import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
 import { vercelApiCall, vercelApiConfigured } from '../firebase/api'
-import { db } from '../firebase/config'
+import { rtdb } from '../firebase/config'
 import { PLAYER_TAG_OPTIONS, QUEUE_LABELS, ROLES } from '../lib/constants'
 import { isPremiumActive } from '../lib/plan'
-import {
-  buildRiotAuthorizeUrlForBrowser,
-  completeRiotSsoInBrowser,
-  logRsoBrowserDiagnostics,
-  profilePatchFromRiotAccount,
-  riotRsoBrowserConfigured,
-  RSO_LOG_PREFIX,
-} from '../lib/riotRsoBrowser'
+import { normalizeUserFromRtdb, userProfileRef } from '../lib/rtdbUserProfile'
 import { getPublicSiteUrl } from '../lib/siteUrl'
 import { hasSemiAleatorioSeal } from '../lib/seal'
 import { formatLastSeenAgo, isRecentlyActive } from '../lib/timeAgoFirestore'
 import type { PlayerStatus, QueueType, UserProfile } from '../types/models'
 
 export function ProfilePage() {
-  const { user, profile, loading, refreshProfile, updateLocalProfile } = useAuth()
+  const {
+    user,
+    profile,
+    loading,
+    refreshProfile,
+    updateLocalProfile,
+    persistProfile,
+  } = useAuth()
+  const toast = useToast()
   const [params, setParams] = useSearchParams()
   const viewUid = params.get('u')
   const [viewProfile, setViewProfile] = useState<UserProfile | null>(null)
@@ -36,117 +39,52 @@ export function ProfilePage() {
   const [payLoading, setPayLoading] = useState<string | null>(null)
   const [payMsg, setPayMsg] = useState<string | null>(null)
   const [copiedKey, setCopiedKey] = useState('')
+  /** Evita que `useEffect` do perfil apague o que estás a escrever em nick/tag Riot. */
+  const riotInputFocusRef = useRef({ nick: false, tag: false })
 
   const isOwn = !viewUid || viewUid === user?.uid
   const display = isOwn ? profile : viewProfile
 
   useEffect(() => {
-    if (!viewUid || !db || viewUid === user?.uid) {
+    if (!viewUid || !rtdb || viewUid === user?.uid) {
       setViewProfile(null)
       return
     }
-    getDoc(doc(db, 'users', viewUid)).then((snap) => {
+    get(userProfileRef(rtdb, viewUid)).then((snap) => {
       if (!snap.exists()) {
         setViewProfile(null)
         return
       }
-      const data = snap.data() as UserProfile
-      if (data.shadowBanned) {
+      const p = normalizeUserFromRtdb(snap.val(), viewUid)
+      if (!p || p.shadowBanned) {
         setViewProfile(null)
         return
       }
-      setViewProfile({ ...data, uid: data.uid ?? viewUid })
+      setViewProfile(p)
     })
   }, [viewUid, user?.uid])
 
   useEffect(() => {
     if (!profile) return
+    const f = riotInputFocusRef.current
+    if (f.nick || f.tag) return
     setRiotNick(profile.nickname ?? '')
     setRiotTag(profile.tag ?? '')
   }, [profile?.uid, profile?.nickname, profile?.tag])
 
+  /** Riot SSO no browser está desativado: limpa query OAuth se existir. */
   useEffect(() => {
     const code = params.get('code')
     const st = params.get('state')
-    const oauthErr = params.get('error')
-    const oauthErrDesc = params.get('error_description')
-
-    if (oauthErr && !code) {
-      console.warn(`${RSO_LOG_PREFIX} Riot redireccionou com erro (query)`, {
-        error: oauthErr,
-        error_description: oauthErrDesc,
-      })
-    }
-
     if (!code || !st) return
-
-    if (!user || !db) {
-      console.warn(`${RSO_LOG_PREFIX} callback com code+state mas user/db indisponível — espera login/Firebase`, {
-        temUser: !!user,
-        temDb: !!db,
-      })
-      return
-    }
-
-    console.info(`${RSO_LOG_PREFIX} callback OAuth detetado (code + state na URL)`)
-
-    const key = `${code}:${st}`
-    const lockKey = `rso_lock_${key}`
-    if (sessionStorage.getItem(lockKey)) {
-      console.info(`${RSO_LOG_PREFIX} lock duplicado ignorado (Strict Mode ou refresh)`, lockKey)
-      return
-    }
-    sessionStorage.setItem(lockKey, '1')
-
-    let cancelled = false
-    setLinkRiotLoading(true)
-    setRiotMsg(null)
-
-    ;(async () => {
-      try {
-        const acc = await completeRiotSsoInBrowser(code, st)
-        const patch = profilePatchFromRiotAccount(
-          acc.gameName,
-          acc.tagLine,
-          acc.puuid,
-          'UNRANKED',
-        )
-        updateLocalProfile(patch as Partial<UserProfile>)
-        await persistProfile(user.uid, patch as Record<string, unknown>)
-        await refreshProfile()
-        if (!cancelled) {
-          setRiotMsg(
-            'Conta Riot ligada (browser). Elo em UNRANKED — a confirmação manual com servidor ainda preenche ranked.',
-          )
-        }
-      } catch (e) {
-        sessionStorage.removeItem(lockKey)
-        console.error(`${RSO_LOG_PREFIX} erro no callback`, e)
-        if (!cancelled) {
-          setRiotMsg(
-            e instanceof Error ? e.message : 'Erro ao concluir o login Riot.',
-          )
-        }
-      } finally {
-        if (!cancelled) setLinkRiotLoading(false)
-        const next = new URLSearchParams(params)
-        next.delete('code')
-        next.delete('state')
-        setParams(next, { replace: true })
-      }
-    })()
-
-    return () => {
-      cancelled = true
-    }
-  }, [
-    params,
-    user,
-    db,
-    setParams,
-    refreshProfile,
-    updateLocalProfile,
-  ])
+    const next = new URLSearchParams(params)
+    next.delete('code')
+    next.delete('state')
+    setParams(next, { replace: true })
+    setRiotMsg(
+      'Login Riot no browser (SSO) está desativado. Usa a confirmação manual abaixo.',
+    )
+  }, [params, setParams])
 
   const seal = display && (hasSemiAleatorioSeal(display) || display.semiAleatorio)
 
@@ -190,6 +128,9 @@ export function ProfilePage() {
       await navigator.clipboard.writeText(value)
       setCopiedKey(key)
       window.setTimeout(() => setCopiedKey(''), 2200)
+      toast.success(
+        key === 'link' ? 'Link do perfil copiado.' : 'Copiado para a área de transferência.',
+      )
     } catch {
       window.prompt('Copie:', value)
     }
@@ -200,36 +141,16 @@ export function ProfilePage() {
     value: UserProfile[K],
   ) {
     if (!user || !isOwn) return
+    const prev = profile
     updateLocalProfile({ [key]: value } as Partial<UserProfile>)
-    await persistProfile(user.uid, { [key]: value } as Record<string, unknown>)
-  }
-
-  function startRiotSso() {
-    logRsoBrowserDiagnostics('clique: Entrar com conta Riot')
-
-    if (!user) {
-      console.warn(`${RSO_LOG_PREFIX} abortado: sem sessão Firebase no perfil`)
-      setRiotMsg('Inicia sessão para ligar a conta Riot.')
-      return
-    }
-    if (!riotRsoBrowserConfigured()) {
-      console.warn(
-        `${RSO_LOG_PREFIX} abortado: VITE_RIOT_RSO_CLIENT_ID vazio — vê grupo de diagnóstico acima`,
-      )
-      setRiotMsg(
-        'Define VITE_RIOT_RSO_CLIENT_ID (e VITE_RIOT_RSO_CLIENT_SECRET) no .env.',
-      )
-      return
-    }
-    setLinkRiotLoading(true)
-    setRiotMsg(null)
     try {
-      const url = buildRiotAuthorizeUrlForBrowser(user.uid)
-      window.location.assign(url)
+      await persistProfile(user.uid, { [key]: value } as Partial<UserProfile>)
     } catch (e) {
-      console.error(`${RSO_LOG_PREFIX} excepção ao montar URL authorize`, e)
-      setRiotMsg(e instanceof Error ? e.message : 'Erro ao iniciar RSO.')
-      setLinkRiotLoading(false)
+      console.error('[Perfil] persistProfile falhou:', key, e)
+      toast.error('Não foi possível guardar. Tenta de novo.')
+      if (prev) {
+        updateLocalProfile({ [key]: prev[key] } as Partial<UserProfile>)
+      }
     }
   }
 
@@ -252,7 +173,9 @@ export function ProfilePage() {
         tagLine: tag,
       })
       await refreshProfile()
+      riotInputFocusRef.current = { nick: false, tag: false }
       setRiotMsg('Riot ID confirmado — nick, tag, PUUID e elo atualizados.')
+      toast.success('Riot ID confirmado.')
     } catch (e) {
       setRiotMsg(formatApiBackendError(e))
     } finally {
@@ -491,7 +414,7 @@ export function ProfilePage() {
                   {display.playerTags.map((t) => (
                     <span
                       key={t}
-                      className="rounded-lg bg-white/10 px-2.5 py-1 text-xs text-slate-300"
+                      className="rounded-lg bg-primary/20 px-2.5 py-1 text-xs font-medium text-primary ring-1 ring-primary/35"
                     >
                       {t}
                     </span>
@@ -513,50 +436,14 @@ export function ProfilePage() {
             <p className="text-sm text-slate-400">
               {profile?.riotPuuid
                 ? `Ligado: ${profile.nickname ?? '?'}#${profile.tag ?? '?'}`
-                : 'Liga a tua conta com o login oficial da Riot (RSO) ou confirma o Riot ID à mão.'}
+                : 'Confirma o teu Riot ID abaixo — o servidor valida com a Riot API e atualiza nick, tag, PUUID e elo.'}
             </p>
             <p className="text-xs leading-relaxed text-slate-500">
-              O fluxo atual corre no browser (segredos em{' '}
-              <code className="text-[0.65rem]">VITE_RIOT_RSO_*</code> — expostos no bundle). Exige{' '}
-              <a
-                href="https://support-developer.riotgames.com/hc/en-us/articles/22801670382739-RSO-Riot-Sign-On"
-                target="_blank"
-                rel="noreferrer"
-                className="text-primary underline-offset-2 hover:underline"
-              >
-                cliente RSO aprovado
-              </a>{' '}
-              e <code className="text-[0.65rem]">redirect_uri</code> igual a esta página (ex.{' '}
-              <code className="text-[0.65rem]">/app/perfil</code>). Confirmação manual continua a
-              usar o servidor e <code className="text-[0.65rem]">RIOT_API_KEY</code>.
+              O login Riot no browser (SSO) está desativado nesta versão. Usa sempre a confirmação
+              manual; exige <code className="text-[0.65rem]">RIOT_API_KEY</code> no backend.
             </p>
-            {import.meta.env.DEV ? (
-              <p className="rounded-lg border border-border bg-white/5 px-3 py-2 text-xs text-slate-400">
-                Dev só com Vite: define{' '}
-                <code className="text-[0.65rem]">
-                  VITE_RIOT_RSO_TOKEN_URL=/__riot-oauth/token
-                </code>{' '}
-                e{' '}
-                <code className="text-[0.65rem]">
-                  VITE_RIOT_RSO_ACCOUNT_ME_URL=/__riot-oauth/account-me
-                </code>{' '}
-                para contornar CORS. Na Vercel, aponta ambos para{' '}
-                <code className="text-[0.65rem]">/api/riotRsoBrowserProxy</code> (rota sem
-                Firebase).
-              </p>
-            ) : null}
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={linkRiotLoading}
-                onClick={() => startRiotSso()}
-                className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-black ring-1 ring-primary/40 hover:bg-primary/90 disabled:opacity-50"
-              >
-                {linkRiotLoading ? 'A abrir a Riot…' : 'Entrar com conta Riot (oficial)'}
-              </button>
-            </div>
             <p className="text-xs font-medium uppercase tracking-wide text-slate-600">
-              Ou confirma manualmente
+              Confirmar Riot ID
             </p>
             <div className="flex max-w-md flex-col gap-3 sm:flex-row sm:items-end">
               <label className="block flex-1 text-xs text-slate-500">
@@ -564,6 +451,12 @@ export function ProfilePage() {
                 <input
                   value={riotNick}
                   onChange={(e) => setRiotNick(e.target.value)}
+                  onFocus={() => {
+                    riotInputFocusRef.current.nick = true
+                  }}
+                  onBlur={() => {
+                    riotInputFocusRef.current.nick = false
+                  }}
                   autoComplete="off"
                   className="mt-1 w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-white"
                 />
@@ -573,6 +466,12 @@ export function ProfilePage() {
                 <input
                   value={riotTag}
                   onChange={(e) => setRiotTag(e.target.value)}
+                  onFocus={() => {
+                    riotInputFocusRef.current.tag = true
+                  }}
+                  onBlur={() => {
+                    riotInputFocusRef.current.tag = false
+                  }}
                   autoComplete="off"
                   placeholder="BR1"
                   className="mt-1 w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-white"
@@ -721,10 +620,10 @@ export function ProfilePage() {
                           : [...cur, t]
                         void saveField('playerTags', next)
                       }}
-                      className={`rounded-lg px-3 py-1.5 text-xs ${
+                      className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
                         selected
-                          ? 'bg-white/15 text-white'
-                          : 'bg-white/5 text-slate-500'
+                          ? 'bg-primary/25 text-primary ring-2 ring-primary/50 shadow-sm shadow-primary/10'
+                          : 'bg-white/5 text-slate-500 hover:bg-white/10'
                       }`}
                     >
                       {t}
@@ -739,7 +638,7 @@ export function ProfilePage() {
               <textarea
                 value={display.bio ?? ''}
                 onChange={(e) => updateLocalProfile({ bio: e.target.value })}
-                onBlur={() => void saveField('bio', display.bio)}
+                onBlur={(e) => void saveField('bio', e.target.value)}
                 rows={3}
                 maxLength={200}
                 className="mt-1 w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-white"
@@ -843,14 +742,14 @@ export function ProfilePage() {
             <button
               type="button"
               onClick={async () => {
-                if (!user || !db) return
+                if (!user || !rtdb) return
                 if (profile?.plan === 'premium') {
-                  await updateDoc(doc(db, 'users', user.uid), {
+                  await persistProfile(user.uid, {
                     plan: 'free',
                     premiumUntil: null,
                   })
                 } else {
-                  await updateDoc(doc(db, 'users', user.uid), {
+                  await persistProfile(user.uid, {
                     plan: 'premium',
                     premiumUntil: Timestamp.fromMillis(
                       Date.now() + 30 * 86400000,

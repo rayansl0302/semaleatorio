@@ -1,19 +1,9 @@
-import {
-  addDoc,
-  and,
-  collection,
-  onSnapshot,
-  or,
-  orderBy,
-  query,
-  serverTimestamp,
-  where,
-} from 'firebase/firestore'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { db } from '../firebase/config'
+import { rtdb } from '../firebase/config'
 import { extractLikelyFirebaseUid, threadIdFor } from '../lib/messages'
+import { pushMessage, subscribeThreadMessages } from '../lib/rtdbMessages'
 import type { MessageDoc } from '../types/models'
 
 export function MessagesPage() {
@@ -37,42 +27,21 @@ export function MessagesPage() {
   }, [user, activePeer])
 
   useEffect(() => {
-    if (!db || !tid || !user) {
+    if (!rtdb || !tid || !user) {
       setMessages([])
       return
     }
-    const uid = user.uid
-    const q = query(
-      collection(db, 'messages'),
-      or(
-        and(where('threadId', '==', tid), where('fromUid', '==', uid)),
-        and(where('threadId', '==', tid), where('toUid', '==', uid)),
-      ),
-      orderBy('createdAt', 'asc'),
-    )
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        const list: MessageDoc[] = []
-        snap.forEach((d) =>
-          list.push({ id: d.id, ...(d.data() as Omit<MessageDoc, 'id'>) }),
-        )
-        setMessages(list)
-      },
-      () => setMessages([]),
-    )
-    return () => unsub()
+    return subscribeThreadMessages(rtdb, tid, setMessages)
   }, [tid, user])
 
   async function send(e: React.FormEvent) {
     e.preventDefault()
-    if (!db || !user || !activePeer || !text.trim()) return
-    await addDoc(collection(db, 'messages'), {
+    if (!rtdb || !user || !activePeer || !text.trim()) return
+    await pushMessage(rtdb, {
       threadId: threadIdFor(user.uid, activePeer),
       fromUid: user.uid,
       toUid: activePeer,
       text: text.trim(),
-      createdAt: serverTimestamp(),
     })
     setText('')
   }

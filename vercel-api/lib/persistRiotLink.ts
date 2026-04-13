@@ -1,4 +1,5 @@
-import { getDb } from './admin.js'
+import admin from 'firebase-admin'
+import { getRtdb } from './admin.js'
 import { profileSlugFromNick } from './profileSlug.js'
 
 export async function persistLinkedRiotProfile(
@@ -8,18 +9,18 @@ export async function persistLinkedRiotProfile(
   puuid: string,
   elo: string,
 ) {
-  const db = getDb()
+  const rtdb = getRtdb()
   const slug = profileSlugFromNick(gameName, tagLine)
-  await db.doc(`users/${uid}`).set(
-    {
-      nickname: gameName,
-      tag: tagLine,
-      riotPuuid: puuid,
-      elo,
-      profileSlug: slug,
-    },
-    { merge: true },
-  )
+  const updates: Record<string, unknown> = {
+    [`users/${uid}/nickname`]: gameName,
+    [`users/${uid}/tag`]: tagLine,
+    [`users/${uid}/riotPuuid`]: puuid,
+    [`users/${uid}/elo`]: elo,
+    [`users/${uid}/profileSlug`]: slug,
+    [`users/${uid}/lastOnline`]: admin.database.ServerValue.TIMESTAMP,
+    [`profileSlugIndex/${slug}/uid`]: uid,
+  }
+  await rtdb.ref().update(updates)
   return {
     gameName,
     tagLine,

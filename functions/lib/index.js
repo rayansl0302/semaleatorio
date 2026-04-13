@@ -59,8 +59,8 @@ function loadEnvFromDotenv() {
     }
 }
 loadEnvFromDotenv();
-admin.initializeApp();
-const db = admin.firestore();
+const rtdbUrl = process.env.FIREBASE_DATABASE_URL?.trim();
+admin.initializeApp(rtdbUrl ? { databaseURL: rtdbUrl } : {});
 exports.fetchRiotRank = (0, https_1.onCall)(callableOpts, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError('unauthenticated', 'Faça login.');
@@ -102,33 +102,31 @@ exports.submitRating = (0, https_1.onCall)(callableOpts, async (request) => {
         throw new https_1.HttpsError('invalid-argument', 'Notas entre 1 e 5.');
     }
     const overall = (communication + skill + (6 - toxicity)) / 3;
-    const userRef = db.doc(`users/${toUid}`);
-    const ratingRef = db.collection('ratings').doc();
-    await db.runTransaction(async (tx) => {
-        const snap = await tx.get(userRef);
-        if (!snap.exists) {
-            throw new https_1.HttpsError('not-found', 'Usuário não encontrado.');
-        }
-        const cur = snap.data();
-        const prevN = cur.ratingCount ?? 0;
-        const prevAvg = cur.ratingAvg ?? 0;
+    const rtdb = admin.database();
+    const userRef = rtdb.ref(`users/${toUid}`);
+    const tx = await userRef.transaction((current) => {
+        if (current == null)
+            return undefined;
+        const c = current;
+        const prevN = c.ratingCount ?? 0;
+        const prevAvg = c.ratingAvg ?? 0;
         const count = prevN + 1;
         const newAvg = prevN === 0 ? overall : (prevAvg * prevN + overall) / count;
         const semiAleatorio = count >= 5 && newAvg >= 4.2;
-        tx.set(ratingRef, {
-            fromUid,
-            toUid,
-            communication,
-            skill,
-            toxicity,
-            overall,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-        tx.update(userRef, {
-            ratingAvg: newAvg,
-            ratingCount: count,
-            semiAleatorio,
-        });
+        return { ...current, ratingAvg: newAvg, ratingCount: count, semiAleatorio };
+    });
+    if (!tx.committed) {
+        throw new https_1.HttpsError('not-found', 'Usuário não encontrado.');
+    }
+    const ratingRef = rtdb.ref('ratings').push();
+    await ratingRef.set({
+        fromUid,
+        toUid,
+        communication,
+        skill,
+        toxicity,
+        overall,
+        createdAt: Date.now(),
     });
     return { ok: true };
 });

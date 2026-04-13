@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { BrandLogo } from '../components/BrandLogo'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../contexts/ToastContext'
+import { LogIn, Sparkles, UserPlus } from '../lib/icons'
 import { missingFirebaseViteEnvVars } from '../firebase/config'
 import { authErrorMessage } from '../lib/authErrors'
 
@@ -27,6 +29,7 @@ export function AuthPage() {
     registerWithEmailPassword,
     sendPasswordResetEmail,
   } = useAuth()
+  const toast = useToast()
 
   const [mode, setMode] = useState<Mode>('login')
   const [email, setEmail] = useState('')
@@ -102,6 +105,7 @@ export function AuthPage() {
     try {
       await sendPasswordResetEmail(em)
       setResetSent(true)
+      toast.success('Se o e-mail existir na conta, enviámos o link de recuperação.')
     } catch (err) {
       const code = err instanceof FirebaseError ? err.code : undefined
       setError(authErrorMessage(code))
@@ -269,13 +273,21 @@ export function AuthPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full rounded-xl bg-primary py-3 text-sm font-bold text-black transition hover:bg-primary/90 disabled:opacity-60"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-bold text-black transition hover:bg-primary/90 disabled:opacity-60"
                 >
-                  {loading
-                    ? 'Aguarde…'
-                    : mode === 'login'
-                      ? 'Entrar com e-mail'
-                      : 'Criar conta'}
+                  {loading ? (
+                    'Aguarde…'
+                  ) : mode === 'login' ? (
+                    <>
+                      <LogIn className="h-4 w-4 shrink-0" aria-hidden />
+                      Entrar com e-mail
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="h-4 w-4 shrink-0" aria-hidden />
+                      Criar conta
+                    </>
+                  )}
                 </button>
               </form>
 
@@ -303,8 +315,9 @@ export function AuthPage() {
                 type="button"
                 disabled={loading}
                 onClick={() => void onGoogle()}
-                className="w-full rounded-xl border border-border bg-card py-3 text-sm font-semibold text-white transition hover:bg-white/5 disabled:opacity-60"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-sm font-semibold text-white transition hover:bg-white/5 disabled:opacity-60"
               >
+                <Sparkles className="h-4 w-4 shrink-0 text-amber-300/90" aria-hidden />
                 Continuar com Google
               </button>
             </>
