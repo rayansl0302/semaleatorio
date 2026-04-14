@@ -74,12 +74,26 @@ export function FeedHomePage() {
                   const active = isRecentlyActive(p.lastOnline)
                   const ago = formatLastSeenAgo(p.lastOnline)
                   const initial = (p.nickname?.[0] ?? '?').toUpperCase()
+                  const pPremium = isPremiumActive(p)
+                  const pVar = pPremium ? premiumVariantOf(p) : null
+                  const pBoosted =
+                    p.boostUntil &&
+                    typeof p.boostUntil.toMillis === 'function' &&
+                    p.boostUntil.toMillis() > Date.now()
+                  const presenceBorder = (() => {
+                    if (pPremium && pVar === 'complete')
+                      return 'ring-1 ring-amber-500/40'
+                    if (pPremium && pVar === 'essential')
+                      return 'ring-1 ring-slate-400/40'
+                    if (pBoosted) return 'ring-1 ring-primary/30'
+                    return ''
+                  })()
                   return (
                     <li key={p.uid}>
                       <button
                         type="button"
                         onClick={() => navigate(`/app/perfil?u=${p.uid}`)}
-                        className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left transition hover:bg-white/[0.06]"
+                        className={`flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left transition hover:bg-white/[0.06] ${presenceBorder}`}
                       >
                         <div className="relative shrink-0">
                           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary/35 text-xs font-bold text-white">

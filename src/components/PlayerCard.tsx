@@ -77,8 +77,17 @@ export function PlayerCard({
     return h > 0 ? `${h}h${m > 0 ? ` ${m}min` : ''}` : `${m}min`
   })()
 
+  const cardBorderClass = (() => {
+    if (premium && premiumVar === 'complete')
+      return 'border-amber-500/50 hover:border-amber-400/70'
+    if (premium && premiumVar === 'essential')
+      return 'border-slate-400/50 hover:border-slate-300/70'
+    if (boosted) return 'border-primary/40 hover:border-primary/60'
+    return 'border-border hover:border-primary/30'
+  })()
+
   return (
-    <article className="relative flex flex-col rounded-xl border border-border bg-card p-4 shadow-lg transition hover:border-primary/30">
+    <article className={`relative flex flex-col rounded-xl border ${cardBorderClass} bg-card p-4 shadow-lg transition`}>
       {isSeed && (
         <span className="absolute left-2 top-2 rounded bg-secondary/30 px-2 py-0.5 text-[10px] font-semibold uppercase text-blue-200">
           Exemplo

@@ -45,8 +45,22 @@ export function PostCard({ post, onAuthorClick, viewerUid }: Props) {
         })
       : ''
 
+  const authorBorderClass = (() => {
+    if (!author) return 'border-border'
+    if (isPremiumActive(author) && premiumVariantOf(author) === 'complete')
+      return 'border-amber-500/50'
+    if (isPremiumActive(author) && premiumVariantOf(author) === 'essential')
+      return 'border-slate-400/50'
+    const bEnd =
+      author.boostUntil && typeof author.boostUntil.toMillis === 'function'
+        ? author.boostUntil.toMillis()
+        : 0
+    if (bEnd > Date.now()) return 'border-primary/40'
+    return 'border-border'
+  })()
+
   return (
-    <article className="rounded-xl border border-border bg-card p-4">
+    <article className={`rounded-xl border ${authorBorderClass} bg-card p-4`}>
       <div className="flex items-start justify-between gap-2">
         <h3 className="font-semibold text-white">{post.title}</h3>
         <span className="shrink-0 text-xs text-slate-500">{date}</span>
