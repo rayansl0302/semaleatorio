@@ -1,2 +1,0 @@
-# Este projeto não usa API serverless na Vercel nem Cloud Functions no repositório.
-# Dados e regras: Firebase Authentication + Firestore (ver README).

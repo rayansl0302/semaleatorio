@@ -71,11 +71,14 @@ export function TermsOfServicePage() {
 
       <h2 className="mt-10 text-lg font-semibold text-white">6. Planos pagos e pagamentos</h2>
       <p>
-        Recursos premium ou complementares podem ser oferecidos mediante pagamento processado por parceiros
-        (por exemplo, <strong className="text-slate-200">Asaas</strong>). Preços, formas de pagamento e prazos
-        são exibidos no momento da contratação. A confirmação do pagamento pode depender do processador e da
-        rede bancária. Em caso de chargeback, fraude ou disputa, podemos suspender benefícios vinculados à
-        transação.
+        Recursos premium ou complementares podem ser oferecidos mediante pagamento processado por{' '}
+        <strong className="text-slate-200">parceiros de pagamento</strong>, podendo incluir{' '}
+        <strong className="text-slate-200">PIX</strong>,{' '}
+        <strong className="text-slate-200">cartão de crédito</strong> ou{' '}
+        <strong className="text-slate-200">cartão de débito</strong>, conforme disponibilidade no checkout.
+        Preços, formas de pagamento e prazos são exibidos no momento da contratação. A confirmação do pagamento
+        pode depender do processador e da rede bancária ou da bandeira. Em caso de chargeback, fraude ou
+        disputa, podemos suspender benefícios vinculados à transação.
       </p>
       <p>
         Exceto quando a lei exigir o contrário, <strong className="text-slate-200">não garantimos reembolso

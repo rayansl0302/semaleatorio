@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ChatMessagesPane, ChatThreadHeader } from '../components/ChatMessagesPane'
 import { useAuth } from '../contexts/AuthContext'
+import { useChatFocus } from '../contexts/ChatFocusContext'
+import { useMessageThreadsContext } from '../contexts/MessageThreadsContext'
 import { db } from '../firebase/config'
 import { useFirestoreUserProfile } from '../hooks/useFirestoreUserProfile'
 import {
@@ -14,6 +16,8 @@ import type { MessageDoc } from '../types/models'
 
 export function MessagesPage() {
   const { user, profile: myProfile } = useAuth()
+  const { setFocusedThreadPeer } = useChatFocus()
+  const { markThreadRead } = useMessageThreadsContext()
   const [params, setParams] = useSearchParams()
   const otherUid = params.get('com') ?? ''
   const [peerInput, setPeerInput] = useState(otherUid)
@@ -49,6 +53,21 @@ export function MessagesPage() {
     if (myProfile?.nickname) return `${myProfile.nickname}#${myProfile.tag}`
     return user?.displayName?.trim() || 'Eu'
   }, [myProfile, user?.displayName])
+
+  useEffect(() => {
+    if (!activePeer) {
+      setFocusedThreadPeer(null)
+      return
+    }
+    setFocusedThreadPeer(activePeer)
+    return () => setFocusedThreadPeer(null)
+  }, [activePeer, setFocusedThreadPeer])
+
+  useEffect(() => {
+    if (!tid || !messages.length) return
+    const maxM = Math.max(...messages.map((m) => m.createdAt?.toMillis?.() ?? 0))
+    if (maxM > 0) markThreadRead(tid, maxM)
+  }, [tid, messages, markThreadRead])
 
   useEffect(() => {
     if (!db || !tid || !user) {

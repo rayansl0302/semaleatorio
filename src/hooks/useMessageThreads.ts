@@ -53,5 +53,5 @@ export function useMessageThreads(myUid: string | undefined) {
       })
   }, [fromList, toList, myUid])
 
-  return { threads }
+  return { threads, fromList, toList }
 }

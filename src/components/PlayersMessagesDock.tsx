@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChatMessagesPane, ChatThreadHeader } from './ChatMessagesPane'
 import { useAuth } from '../contexts/AuthContext'
+import { useChatFocus } from '../contexts/ChatFocusContext'
+import { useMessageThreadsContext } from '../contexts/MessageThreadsContext'
 import { useToast } from '../contexts/ToastContext'
 import { db } from '../firebase/config'
-import { useMessageThreads } from '../hooks/useMessageThreads'
 import { usePlayers } from '../hooks/usePlayers'
 import {
   extractLikelyFirebaseUid,
@@ -41,6 +42,8 @@ type DockChatProps = {
 function DockChatPanel({ myUid, peerUid, peerLabel, onBack }: DockChatProps) {
   const toast = useToast()
   const { user, profile: myProfile } = useAuth()
+  const { setFocusedThreadPeer } = useChatFocus()
+  const { markThreadRead } = useMessageThreadsContext()
   const [messages, setMessages] = useState<MessageDoc[]>([])
   const [text, setText] = useState('')
   const [listenError, setListenError] = useState<string | null>(null)
@@ -53,6 +56,17 @@ function DockChatPanel({ myUid, peerUid, peerLabel, onBack }: DockChatProps) {
     if (myProfile?.nickname) return `${myProfile.nickname}#${myProfile.tag}`
     return user?.displayName?.trim() || 'Eu'
   }, [myProfile, user?.displayName])
+
+  useEffect(() => {
+    setFocusedThreadPeer(peerNorm)
+    return () => setFocusedThreadPeer(null)
+  }, [peerNorm, setFocusedThreadPeer])
+
+  useEffect(() => {
+    if (!messages.length) return
+    const maxM = Math.max(...messages.map((m) => m.createdAt?.toMillis?.() ?? 0))
+    if (maxM > 0) markThreadRead(tid, maxM)
+  }, [messages, tid, markThreadRead])
 
   useEffect(() => {
     if (!db || !tid) {
@@ -155,7 +169,7 @@ function DockChatPanel({ myUid, peerUid, peerLabel, onBack }: DockChatProps) {
 export function PlayersMessagesDock() {
   const { user } = useAuth()
   const { players } = usePlayers()
-  const { threads } = useMessageThreads(user?.uid)
+  const { threads, unreadCount, isThreadUnread } = useMessageThreadsContext()
   const [expanded, setExpanded] = useState(false)
   const [search, setSearch] = useState('')
   const [selectedPeer, setSelectedPeer] = useState<string | null>(null)
@@ -213,6 +227,16 @@ export function PlayersMessagesDock() {
               {threads.length}
             </span>
           )}
+          {unreadCount > 0 ? (
+            <span
+              className={`inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-black ${
+                !expanded ? 'motion-safe:animate-pulse' : ''
+              }`}
+              aria-label={`${unreadCount} não lida(s)`}
+            >
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          ) : null}
         </div>
         <svg
           className={`h-5 w-5 shrink-0 text-slate-500 transition-transform ${expanded ? 'rotate-180' : ''}`}
@@ -285,6 +309,7 @@ export function PlayersMessagesDock() {
                       const p = profileFor(t.peerUid)
                       const online = peerOnline(p)
                       const initial = (p?.nickname?.[0] ?? t.peerUid[0] ?? '?').toUpperCase()
+                      const unread = isThreadUnread(t.threadId, t.last)
                       return (
                         <li key={t.threadId}>
                           <button
@@ -302,17 +327,31 @@ export function PlayersMessagesDock() {
                                   title="Ativo recentemente"
                                 />
                               )}
+                              {unread ? (
+                                <span
+                                  className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-primary shadow-sm ring-2 ring-card"
+                                  aria-hidden
+                                />
+                              ) : null}
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="flex items-baseline justify-between gap-1">
-                                <span className="truncate text-sm font-medium text-white">
+                                <span
+                                  className={`truncate text-sm font-medium ${unread ? 'text-white' : 'text-slate-200'}`}
+                                >
                                   {labelFor(t.peerUid)}
                                 </span>
-                                <span className="shrink-0 text-[10px] text-slate-500">
+                                <span
+                                  className={`shrink-0 text-[10px] ${unread ? 'font-semibold text-primary' : 'text-slate-500'}`}
+                                >
                                   {formatDockTime(t.lastAt)}
                                 </span>
                               </div>
-                              <p className="truncate text-xs text-slate-500">{t.lastText}</p>
+                              <p
+                                className={`truncate text-xs ${unread ? 'font-medium text-slate-300' : 'text-slate-500'}`}
+                              >
+                                {t.lastText}
+                              </p>
                             </div>
                           </button>
                         </li>

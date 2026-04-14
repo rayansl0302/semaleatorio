@@ -67,6 +67,10 @@ function toFirestoreUpdate(patch: Partial<UserProfile>): Record<string, unknown>
   const out: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(patch)) {
     if (v === undefined) continue
+    if (k === 'premiumVariant' && v === null) {
+      out[k] = deleteField()
+      continue
+    }
     if (
       k === 'lastOnline' ||
       k === 'createdAt' ||

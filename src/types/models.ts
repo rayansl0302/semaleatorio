@@ -4,6 +4,9 @@ export type QueueType = 'duo' | 'flex' | 'clash'
 export type PlayerStatus = 'LFG' | 'PLAYING' | 'OFFLINE'
 export type Plan = 'free' | 'premium'
 
+/** Com `plan: premium`: essencial (R$ 19,90) vs completo (R$ 29,90). Legado sem campo = tratado como completo. */
+export type PremiumVariant = 'essential' | 'complete'
+
 export interface UserProfile {
   uid: string
   nickname: string
@@ -16,6 +19,8 @@ export interface UserProfile {
   ratingCount: number
   lastOnline: Timestamp | null
   plan: Plan
+  /** Só relevante com plano premium ativo. */
+  premiumVariant?: PremiumVariant | null
   semiAleatorio: boolean
   playerTags: string[]
   queueTypes: QueueType[]

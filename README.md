@@ -112,19 +112,19 @@ Exemplo de doc em `seed_profiles`:
 - Botão **Reportar** nos cards (usuário logado): grava em **`reports`**.  
 - Campo **`shadowBanned`** em `users`: se `true`, o jogador **não entra na listagem** e o perfil público some. Defina manualmente no Console ou automatize depois (contagem de denúncias, Function, etc.).
 
-## Pagamentos (Asaas)
+## Pagamentos (backend)
 
-1. Usuário clica em **Pagar com Asaas** / Boost no perfil.  
-2. `createAsaasCheckout` cria cobrança com **PIX** e `externalReference` `SA|uid|produto`.  
-3. Asaas envia **POST** para `asaasWebhook` com o body do evento de cobrança.  
-4. Em **`PAYMENT_RECEIVED`**, a Function atualiza o documento do usuário (Premium 30 dias ou extensão de `boostUntil`).
+1. Usuário escolhe plano ou boost no **perfil** e conclui o checkout (PIX e/ou cartão).  
+2. O backend cria a cobrança no gateway com `externalReference` tipo `SA|uid|produto`.  
+3. O gateway envia **POST** (webhook) para a API com o evento de cobrança.  
+4. Em **`PAYMENT_RECEIVED`**, o servidor atualiza o documento do utilizador (Premium 30 dias ou extensão de `boostUntil`).
 
 ## Modelo freemium
 
 | Free | Premium |
 |------|---------|
 | Perfil, mural, posts, nick, denúncias | Ordenação priorizada, filtros avançados, favoritos ilimitados, stats |
-| `premiumUntil` controla expiração após pagamento Asaas | Boost opcional via Asaas |
+| `premiumUntil` controla expiração após pagamento confirmado | Boost opcional pago |
 
 ## Chat
 

@@ -1,7 +1,7 @@
 import type { UserProfile } from '../types/models'
 import { Copy, MessageCircle, Send, ShieldAlert, Star } from '../lib/icons'
 import { openMessagesDockWithPeer } from '../lib/messageDock'
-import { isPremiumActive } from '../lib/plan'
+import { isPremiumActive, premiumVariantOf } from '../lib/plan'
 import { hasSemiAleatorioSeal } from '../lib/seal'
 import {
   STATUS_LABELS,
@@ -62,6 +62,7 @@ export function PlayerCard({
 }: Props) {
   const seal = hasSemiAleatorioSeal(player) || player.semiAleatorio
   const premium = isPremiumActive(player)
+  const premiumVar = premium ? premiumVariantOf(player) : null
   const boosted =
     player.boostUntil &&
     typeof player.boostUntil.toMillis === 'function' &&
@@ -88,8 +89,14 @@ export function PlayerCard({
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <EloBadge elo={player.elo} />
             {premium && (
-              <span className="rounded-full bg-gradient-to-r from-amber-400 to-amber-600 px-2 py-0.5 text-[10px] font-bold uppercase text-black">
-                Premium
+              <span
+                className={
+                  premiumVar === 'essential'
+                    ? 'rounded-full bg-gradient-to-r from-slate-400 to-slate-500 px-2 py-0.5 text-[10px] font-bold uppercase text-black'
+                    : 'rounded-full bg-gradient-to-r from-amber-400 to-amber-600 px-2 py-0.5 text-[10px] font-bold uppercase text-black'
+                }
+              >
+                {premiumVar === 'essential' ? 'Premium' : 'Premium Pro'}
               </span>
             )}
             {seal && (

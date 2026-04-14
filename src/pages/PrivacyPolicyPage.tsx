@@ -49,9 +49,12 @@ export function PrivacyPolicyPage() {
         </li>
         <li>
           <strong className="text-slate-200">Pagamentos:</strong> quando você adquire planos ou benefícios
-          pagos, dados necessários à cobrança e confirmação são tratados pelo processador de pagamentos
-          integrado (por exemplo, Asaas). Nós podemos receber identificadores de transação, status de pagamento
-          e referências internas para ativar ou renovar benefícios na sua conta.
+          pagos, dados necessários à cobrança e confirmação (incluindo, conforme o meio escolhido, dados de
+          cartão ou de PIX) são tratados pelo{' '}
+          <strong className="text-slate-200">processador de pagamentos</strong> contratado. Nós podemos
+          receber identificadores de transação, status de pagamento e
+          referências internas para ativar ou renovar benefícios na sua conta — sem armazenar número completo
+          de cartão no SemAleatório.
         </li>
       </ul>
 
@@ -91,7 +94,7 @@ export function PrivacyPolicyPage() {
         Utilizamos serviços de terceiros essenciais à operação, como hospedagem, banco de dados, autenticação,
         mensageria, analytics e processamento de pagamentos. Isso pode incluir, entre outros, provedores como{' '}
         <strong className="text-slate-200">Google (Firebase / autenticação)</strong> e{' '}
-        <strong className="text-slate-200">Asaas</strong>, que tratam dados conforme seus próprios termos e
+        <strong className="text-slate-200">processadores de pagamento</strong>, que tratam dados conforme seus próprios termos e
         políticas. Recomendamos a leitura das políticas desses fornecedores quando aplicável.
       </p>
 

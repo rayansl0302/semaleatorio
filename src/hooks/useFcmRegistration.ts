@@ -3,6 +3,8 @@ import { useEffect, useRef } from 'react'
 import { app as firebaseApp, db } from '../firebase/config'
 import { requestFcmToken } from '../firebase/messaging'
 import type { User } from 'firebase/auth'
+import { hasPremiumCompleteFeatures } from '../lib/plan'
+import type { UserProfile } from '../types/models'
 
 const VAPID = import.meta.env.VITE_FCM_VAPID_KEY as string | undefined
 
@@ -13,13 +15,15 @@ function tokenList(v: unknown): string[] {
 }
 
 /**
- * Registra token FCM no perfil (Firestore, `users.fcmTokens`) para notificações.
+ * Regista token FCM no perfil (Firestore, `users.fcmTokens`) para notificações.
+ * Só utilizadores com **Premium Completo** (29,90) — inclui legado sem `premiumVariant`.
  */
-export function useFcmRegistration(user: User | null) {
+export function useFcmRegistration(user: User | null, profile: UserProfile | null) {
   const done = useRef(false)
 
   useEffect(() => {
-    if (!user || !db || !firebaseApp || !VAPID || done.current) return
+    if (!hasPremiumCompleteFeatures(profile) || !user || !db || !firebaseApp || !VAPID || done.current)
+      return
     let cancelled = false
     ;(async () => {
       const token = await requestFcmToken(firebaseApp, VAPID)
@@ -41,5 +45,5 @@ export function useFcmRegistration(user: User | null) {
     return () => {
       cancelled = true
     }
-  }, [user])
+  }, [user, profile])
 }

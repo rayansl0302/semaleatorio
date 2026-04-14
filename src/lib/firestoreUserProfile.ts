@@ -7,7 +7,7 @@ import {
   type Firestore,
 } from 'firebase/firestore'
 import { profileSlugFromNick } from './profileSlug'
-import type { Plan, PlayerStatus, QueueType, UserProfile } from '../types/models'
+import type { Plan, PlayerStatus, PremiumVariant, QueueType, UserProfile } from '../types/models'
 
 const QUEUE_TYPE_SET = new Set<string>(['duo', 'flex', 'clash'])
 
@@ -24,6 +24,11 @@ function readQueueTypes(v: unknown): QueueType[] {
 function readPlayerStatus(v: unknown): PlayerStatus {
   if (v === 'PLAYING' || v === 'OFFLINE' || v === 'LFG') return v
   return 'LFG'
+}
+
+function readPremiumVariant(v: unknown): PremiumVariant | undefined {
+  if (v === 'essential' || v === 'complete') return v
+  return undefined
 }
 
 function asTimestamp(v: unknown): Timestamp | null {
@@ -83,6 +88,7 @@ export function normalizeUserFromFirestore(
     ratingCount: typeof data.ratingCount === 'number' ? data.ratingCount : 0,
     lastOnline: asTimestamp(data.lastOnline),
     plan: data.plan === 'premium' ? 'premium' : 'free',
+    premiumVariant: readPremiumVariant(data.premiumVariant),
     semiAleatorio: Boolean(data.semiAleatorio),
     playerTags,
     queueTypes:

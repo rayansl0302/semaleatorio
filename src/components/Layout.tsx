@@ -10,6 +10,8 @@ import {
 import { BrandLogo, BRAND_LOGO_TEXT_HEADER_IMG_CLASS } from './BrandLogo'
 import { PlayersMessagesDock } from './PlayersMessagesDock'
 import { RiotLegalNotice } from './RiotLegalNotice'
+import { ChatFocusProvider } from '../contexts/ChatFocusContext'
+import { MessageThreadsProvider, useMessageThreadsContext } from '../contexts/MessageThreadsContext'
 import { useAuth } from '../contexts/AuthContext'
 import { db } from '../firebase/config'
 import { useToast } from '../contexts/ToastContext'
@@ -25,18 +27,39 @@ function NavIcon({ children }: { children: ReactNode }) {
   return <span className="inline-flex shrink-0 [&_svg]:h-4 [&_svg]:w-4">{children}</span>
 }
 
-export function Layout() {
+function MessagesNavLink() {
+  const { unreadCount } = useMessageThreadsContext()
+  return (
+    <NavLink to="/app/mensagens" className={navCls}>
+      <span className="relative inline-flex items-center gap-1.5">
+        <NavIcon>
+          <MessageCircle aria-hidden />
+        </NavIcon>
+        Mensagens
+        {unreadCount > 0 ? (
+          <span
+            className="min-w-[1.125rem] rounded-full bg-primary px-1 text-center text-[10px] font-bold leading-5 text-black"
+            aria-label={`${unreadCount} conversa(s) com mensagem não lida`}
+          >
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
+        ) : null}
+      </span>
+    </NavLink>
+  )
+}
+
+function LayoutInner() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { user, loading, firebaseConfigured, logout } = useAuth()
+  const { user, profile, loading, firebaseConfigured, logout } = useAuth()
   const toast = useToast()
-  useFcmRegistration(user)
+  useFcmRegistration(user, profile)
 
   const entrarHref = `/entrar?redirect=${encodeURIComponent(
     `${location.pathname}${location.search}` || '/app',
   )}`
 
-  /** Área /app só com sessão; sem Firebase configurado mantém-se o outlet (mensagens de setup). */
   if (firebaseConfigured && loading) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-bg text-slate-400">
@@ -65,75 +88,68 @@ export function Layout() {
               />
             </Link>
             <nav className="flex flex-wrap items-center gap-1">
-            <NavLink to="/app" className={navCls} end>
-              <span className="inline-flex items-center gap-1.5">
-                <NavIcon>
-                  <Home aria-hidden />
-                </NavIcon>
-                Início
-              </span>
-            </NavLink>
-            <NavLink to="/app/jogadores" className={navCls}>
-              <span className="inline-flex items-center gap-1.5">
-                <NavIcon>
-                  <Users aria-hidden />
-                </NavIcon>
-                Jogadores
-              </span>
-            </NavLink>
-            {!user && (
-              <Link
-                to="/"
-                className="rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:text-white"
-              >
-                Site
-              </Link>
-            )}
-            {user && (
-              <>
-                <NavLink to="/app/perfil" className={navCls}>
-                  <span className="inline-flex items-center gap-1.5">
-                    <NavIcon>
-                      <User aria-hidden />
-                    </NavIcon>
-                    Perfil
-                  </span>
-                </NavLink>
-                <NavLink to="/app/mensagens" className={navCls}>
-                  <span className="inline-flex items-center gap-1.5">
-                    <NavIcon>
-                      <MessageCircle aria-hidden />
-                    </NavIcon>
-                    Mensagens
-                  </span>
-                </NavLink>
-              </>
-            )}
-            {!firebaseConfigured ? (
-              <>
-                <span className="px-2 text-xs text-amber-400">Firebase off</span>
+              <NavLink to="/app" className={navCls} end>
+                <span className="inline-flex items-center gap-1.5">
+                  <NavIcon>
+                    <Home aria-hidden />
+                  </NavIcon>
+                  Início
+                </span>
+              </NavLink>
+              <NavLink to="/app/jogadores" className={navCls}>
+                <span className="inline-flex items-center gap-1.5">
+                  <NavIcon>
+                    <Users aria-hidden />
+                  </NavIcon>
+                  Jogadores
+                </span>
+              </NavLink>
+              {!user && (
                 <Link
-                  to={entrarHref}
-                  className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-black hover:bg-primary/90"
+                  to="/"
+                  className="rounded-lg px-3 py-2 text-sm font-medium text-slate-500 hover:text-white"
                 >
-                  Entrar
+                  Site
                 </Link>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  void logout().then(() => {
-                    toast.success('Sessão encerrada.')
-                    navigate('/', { replace: true })
-                  })
-                }}
-                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-slate-400 hover:bg-white/5 hover:text-white"
-              >
-                <LogOut className="h-4 w-4 shrink-0 opacity-80" aria-hidden />
-                Sair
-              </button>
-            )}
+              )}
+              {user && (
+                <>
+                  <NavLink to="/app/perfil" className={navCls}>
+                    <span className="inline-flex items-center gap-1.5">
+                      <NavIcon>
+                        <User aria-hidden />
+                      </NavIcon>
+                      Perfil
+                    </span>
+                  </NavLink>
+                  <MessagesNavLink />
+                </>
+              )}
+              {!firebaseConfigured ? (
+                <>
+                  <span className="px-2 text-xs text-amber-400">Firebase off</span>
+                  <Link
+                    to={entrarHref}
+                    className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-black hover:bg-primary/90"
+                  >
+                    Entrar
+                  </Link>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void logout().then(() => {
+                      toast.success('Sessão encerrada.')
+                      navigate('/', { replace: true })
+                    })
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-slate-400 hover:bg-white/5 hover:text-white"
+                >
+                  <LogOut className="h-4 w-4 shrink-0 opacity-80" aria-hidden />
+                  Sair
+                </button>
+              )}
             </nav>
           </div>
         </div>
@@ -162,5 +178,15 @@ export function Layout() {
         </div>
       </footer>
     </div>
+  )
+}
+
+export function Layout() {
+  return (
+    <ChatFocusProvider>
+      <MessageThreadsProvider>
+        <LayoutInner />
+      </MessageThreadsProvider>
+    </ChatFocusProvider>
   )
 }

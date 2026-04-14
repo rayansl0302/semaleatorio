@@ -101,7 +101,7 @@ export function PlayersPage() {
     const isFav = favs.includes(target.uid)
     if (!isFav && !isPremium && favs.length >= FREE_FAVORITES_LIMIT) {
       toast.info(
-        `Plano free: até ${FREE_FAVORITES_LIMIT} favoritos. Premium = ilimitados.`,
+        `Plano free: até ${FREE_FAVORITES_LIMIT} favoritos. Premium Essencial ou Pro = ilimitados.`,
       )
       return
     }
@@ -165,10 +165,11 @@ export function PlayersPage() {
 
           {!isPremium && (
             <section className="rounded-xl border border-secondary/30 bg-secondary/10 p-4 text-sm text-blue-100">
-              <span className="font-semibold text-white">Premium</span> — destaque
-              na lista, filtros avançados, favoritos ilimitados, stats e alertas push
-              (FCM). O núcleo continua{' '}
-              <span className="text-primary">grátis</span>.
+              <span className="font-semibold text-white">Planos pagos</span> —{' '}
+              <strong className="text-white">Essencial</strong> (filtros + favoritos),{' '}
+              <strong className="text-amber-200">Pro</strong> (+ estatísticas e push).{' '}
+              <strong className="text-accent">Destaque</strong> avulso (R$ 3 / 1 h ou R$ 5 / 2 h) na
+              lista. O núcleo continua <span className="text-primary">grátis</span>.
               <button
                 type="button"
                 className="ml-2 text-accent underline hover:no-underline"

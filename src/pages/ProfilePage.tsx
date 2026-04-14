@@ -25,7 +25,28 @@ import {
   playerTagLabel,
   roleLabel,
 } from '../lib/constants'
-import { isPremiumActive } from '../lib/plan'
+import { extendBoostUntil } from '../lib/boost'
+import {
+  BOOST_1H_MS,
+  BOOST_2H_MS,
+  formatBrlFromCents,
+  PREMIUM_SUBSCRIPTION_DAYS,
+  PRICE_BOOST_1H_CENTS,
+  PRICE_BOOST_2H_CENTS,
+  PRICE_PREMIUM_COMPLETE_CENTS,
+  PRICE_PREMIUM_ESSENTIAL_CENTS,
+  PRODUCT_REF,
+} from '../lib/pricing'
+import {
+  getAsaasPaymentLinkUrl,
+  hasAsaasPaymentLinksConfigured,
+} from '../lib/asaasPaymentLinks'
+import { isClientPaymentSandbox } from '../lib/asaasPublic'
+import {
+  hasPremiumCompleteFeatures,
+  isPremiumActive,
+  premiumVariantOf,
+} from '../lib/plan'
 import { profileSlugFromNick } from '../lib/profileSlug'
 import {
   normalizeUserFromFirestore,
@@ -153,7 +174,7 @@ export function ProfilePage() {
     setRiotTag(profile.tag ?? '')
   }, [profile?.uid, profile?.nickname, profile?.tag])
 
-  /** Riot SSO no browser está desativado: limpa query OAuth se existir. */
+  /** RSO no browser está desativado: limpa query OAuth se existir. */
   useEffect(() => {
     const code = params.get('code')
     const st = params.get('state')
@@ -167,6 +188,20 @@ export function ProfilePage() {
     )
   }, [params, setParams])
 
+  /** Volta do checkout Asaas: configura `callback.successUrl` no link (ex. `.../app/perfil?pagamento=sucesso`). */
+  useEffect(() => {
+    const paid = params.get('pagamento')
+    if (paid !== 'sucesso' || !isOwn) return
+    const next = new URLSearchParams(params)
+    next.delete('pagamento')
+    setParams(next, { replace: true })
+    void refreshProfile().then(() => {
+      toast.success(
+        'Voltaste do pagamento Asaas. Perfil actualizado — se o plano ainda não apareceu, aguarda uns segundos ou recarrega.',
+      )
+    })
+  }, [params, setParams, isOwn, refreshProfile, toast])
+
   const displayMerged = display
     ? mergeRatingIntoProfile(display, ratingAgg ?? undefined)
     : null
@@ -174,7 +209,10 @@ export function ProfilePage() {
     displayMerged &&
     (hasSemiAleatorioSeal(displayMerged) || displayMerged.semiAleatorio)
 
-  const statsUnlocked = isPremiumActive(profile)
+  const statsUnlocked = hasPremiumCompleteFeatures(profile)
+  const premiumActive = isPremiumActive(profile)
+  const activeVariant = profile ? premiumVariantOf(profile) : null
+  const paymentSandbox = isClientPaymentSandbox()
 
   const mockStats = useMemo(
     () => ({
@@ -228,6 +266,25 @@ export function ProfilePage() {
     setEditForm(profileToForm(profile))
     setEditDirty(false)
     toast.info('Alterações descartadas.')
+  }
+
+  function startCheckout(productRef: string) {
+    if (!user) {
+      toast.error('Faça login para continuar.')
+      return
+    }
+    const url = getAsaasPaymentLinkUrl(productRef)
+    if (!url) {
+      toast.error('Pagamento deste plano ainda não está configurado.')
+      return
+    }
+    const a = document.createElement('a')
+    a.href = url
+    a.target = '_blank'
+    a.rel = 'noopener noreferrer'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
   }
 
   async function confirmRiotId() {
@@ -377,8 +434,14 @@ export function ProfilePage() {
                   </span>
                 </span>
                 {isPremiumActive(display) && (
-                  <span className="rounded-full bg-gradient-to-r from-amber-400 to-amber-600 px-3 py-1 text-xs font-bold text-black">
-                    Premium
+                  <span
+                    className={
+                      premiumVariantOf(display) === 'essential'
+                        ? 'rounded-full bg-gradient-to-r from-slate-400 to-slate-500 px-3 py-1 text-xs font-bold text-black'
+                        : 'rounded-full bg-gradient-to-r from-amber-400 to-amber-600 px-3 py-1 text-xs font-bold text-black'
+                    }
+                  >
+                    {premiumVariantOf(display) === 'essential' ? 'Premium' : 'Premium Pro'}
                   </span>
                 )}
                 {seal && (
@@ -858,36 +921,275 @@ export function ProfilePage() {
 
       {isOwn && (
         <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">
-          <h2 className="text-lg font-semibold text-white">Planos</h2>
+          <h2 className="text-lg font-semibold text-white">Planos e destaque</h2>
           <p className="mt-2 text-sm text-slate-400">
-            Pagamentos (Asaas, PIX, etc.) precisam de um backend seguro; por agora o plano é só
-            Firestore. Use a simulação abaixo para testar o premium no app.
+            Pagamento seguro com <strong className="text-slate-300">PIX</strong>,{' '}
+            <strong className="text-slate-300">cartão de crédito</strong> ou{' '}
+            <strong className="text-slate-300">cartão de débito</strong> (conforme disponível no checkout).
+            Pagamento no{' '}
+            <a
+              href="https://www.asaas.com"
+              target="_blank"
+              rel="noreferrer"
+              className="text-primary underline-offset-2 hover:underline"
+            >
+              site da Asaas
+            </a>{' '}
+            (PIX / cartão conforme o link). As URLs ficam nas constantes{' '}
+            <span className="font-mono text-slate-400">URL_*</span> em{' '}
+            <span className="font-mono text-slate-500">src/lib/asaasPaymentLinks.ts</span> (públicas; em
+            produção substitui por links criados na{' '}
+            <a
+              href="https://docs.asaas.com/reference"
+              target="_blank"
+              rel="noreferrer"
+              className="font-mono text-slate-300 underline-offset-2 hover:underline"
+            >
+              API Asaas
+            </a>
+            ). Podes configurar no link um <strong className="text-slate-300">URL de retorno</strong> para
+            esta página com <span className="font-mono text-slate-500">?pagamento=sucesso</span> (a app
+            actualiza o perfil ao voltares).{' '}
+            <a
+              href="https://docs.asaas.com/docs/criando-um-link-de-pagamentos"
+              target="_blank"
+              rel="noreferrer"
+              className="text-primary underline-offset-2 hover:underline"
+            >
+              Documentação Asaas
+            </a>
+            .
+            {!hasAsaasPaymentLinksConfigured() ? (
+              <>
+                {' '}
+                Ainda sem links — usa a <span className="text-slate-300">simulação (dev)</span> abaixo.
+              </>
+            ) : null}
           </p>
-          <div className="mt-4 border-t border-border pt-4">
-            <p className="text-xs text-slate-500">Somente desenvolvimento local</p>
-            <button
-              type="button"
-              onClick={async () => {
-                if (!user || !db) return
-                if (profile?.plan === 'premium') {
-                  await persistProfile(user.uid, {
-                    plan: 'free',
-                    premiumUntil: null,
-                  })
-                } else {
+
+          {paymentSandbox ? (
+            <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+              <strong className="text-amber-50">Sandbox (UI)</strong> — em localhost esta app só mostra o
+              aviso; chaves e chamadas ao{' '}
+              <a
+                href="https://sandbox.asaas.com"
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-amber-50 underline-offset-2 hover:underline"
+              >
+                Asaas
+              </a>{' '}
+              ficam no backend separado.
+            </div>
+          ) : null}
+
+          <div className="mt-4 rounded-xl border border-border/80 bg-bg/40 p-4 text-sm text-slate-400">
+            <p className="font-medium text-slate-200">Estado atual</p>
+            <ul className="mt-2 list-inside list-disc space-y-1 text-xs">
+              <li>
+                Plano:{' '}
+                {!premiumActive ? (
+                  <span className="text-slate-300">Grátis</span>
+                ) : activeVariant === 'essential' ? (
+                  <span className="text-slate-300">
+                    Premium Essencial ({formatBrlFromCents(PRICE_PREMIUM_ESSENTIAL_CENTS)}/mês)
+                  </span>
+                ) : (
+                  <span className="text-slate-300">
+                    Premium Pro ({formatBrlFromCents(PRICE_PREMIUM_COMPLETE_CENTS)}/mês)
+                  </span>
+                )}
+                {profile?.premiumUntil && typeof profile.premiumUntil.toDate === 'function' ? (
+                  <span className="text-slate-500">
+                    {' '}
+                    · válido até {profile.premiumUntil.toDate().toLocaleString('pt-BR')}
+                  </span>
+                ) : null}
+              </li>
+              <li>
+                Destaque na lista:{' '}
+                {profile?.boostUntil &&
+                typeof profile.boostUntil.toMillis === 'function' &&
+                profile.boostUntil.toMillis() > Date.now() ? (
+                  <span className="text-primary">
+                    ativo até{' '}
+                    {profile.boostUntil.toDate().toLocaleString('pt-BR')}
+                  </span>
+                ) : (
+                  <span className="text-slate-500">inativo</span>
+                )}
+              </li>
+            </ul>
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <div className="flex flex-col rounded-xl border border-border bg-white/[0.03] p-5">
+              <h3 className="text-base font-semibold text-white">Premium Essencial</h3>
+              <p className="mt-1 text-2xl font-bold text-primary">
+                {formatBrlFromCents(PRICE_PREMIUM_ESSENTIAL_CENTS)}
+                <span className="text-sm font-normal text-slate-500"> /mês</span>
+              </p>
+              <ul className="mt-4 flex-1 space-y-2 text-xs text-slate-400">
+                <li>Filtros avançados na lista de jogadores (elo máx., combinações)</li>
+                <li>Favoritos ilimitados</li>
+                <li>Selo Premium no perfil</li>
+                <li className="text-slate-500">Não inclui estatísticas detalhadas nem push</li>
+              </ul>
+              <button
+                type="button"
+                onClick={() => startCheckout(PRODUCT_REF.premiumEssential)}
+                className="mt-4 w-full rounded-lg bg-primary py-2.5 text-sm font-bold text-black hover:bg-primary/90"
+              >
+                Assinar Essencial
+              </button>
+            </div>
+
+            <div className="flex flex-col rounded-xl border border-amber-500/35 bg-amber-500/[0.06] p-5 ring-1 ring-amber-500/20">
+              <h3 className="text-base font-semibold text-white">Premium Pro</h3>
+              <p className="mt-1 text-2xl font-bold text-amber-400">
+                {formatBrlFromCents(PRICE_PREMIUM_COMPLETE_CENTS)}
+                <span className="text-sm font-normal text-slate-500"> /mês</span>
+              </p>
+              <ul className="mt-4 flex-1 space-y-2 text-xs text-slate-300">
+                <li>Tudo do Essencial</li>
+                <li>Estatísticas detalhadas no perfil</li>
+                <li>Notificações push (novos jogadores, mensagens)</li>
+              </ul>
+              <button
+                type="button"
+                onClick={() => startCheckout(PRODUCT_REF.premiumComplete)}
+                className="mt-4 w-full rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 py-2.5 text-sm font-bold text-black hover:opacity-95"
+              >
+                Assinar Pro
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-8 border-t border-border pt-6">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Destaque temporário na lista
+            </h3>
+            <p className="mt-2 text-sm text-slate-400">
+              Sobe a prioridade na ordenação dos jogadores (junto com outros em destaque). Pode
+              acumular tempo se comprar de novo antes de expirar.
+            </p>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <div className="flex flex-1 flex-col rounded-xl border border-border bg-bg/50 p-4">
+                <span className="text-lg font-bold text-white">
+                  {formatBrlFromCents(PRICE_BOOST_1H_CENTS)}
+                </span>
+                <span className="text-xs text-slate-500">1 hora de destaque</span>
+                <button
+                  type="button"
+                  onClick={() => startCheckout(PRODUCT_REF.boost1h)}
+                  className="mt-3 rounded-lg border border-primary/50 bg-primary/10 py-2 text-xs font-semibold text-primary hover:bg-primary/20"
+                >
+                  Comprar 1 h
+                </button>
+              </div>
+              <div className="flex flex-1 flex-col rounded-xl border border-accent/40 bg-accent/5 p-4">
+                <span className="text-lg font-bold text-accent">
+                  {formatBrlFromCents(PRICE_BOOST_2H_CENTS)}
+                </span>
+                <span className="text-xs text-slate-500">2 horas de destaque</span>
+                <button
+                  type="button"
+                  onClick={() => startCheckout(PRODUCT_REF.boost2h)}
+                  className="mt-3 rounded-lg border border-accent/50 bg-accent/15 py-2 text-xs font-semibold text-amber-100 hover:bg-accent/25"
+                >
+                  Comprar 2 h
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8 rounded-xl border border-dashed border-slate-600 bg-bg/30 p-4">
+            <p className="text-xs font-medium uppercase text-slate-500">Simulação (apenas dev)</p>
+            <p className="mt-1 text-xs text-slate-600">
+              Aplica alterações direto no Firestore para testar a UI. Em produção só o servidor (webhook de
+              pagamento) deve alterar plano, datas e destaque.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!user) return
                   await persistProfile(user.uid, {
                     plan: 'premium',
+                    premiumVariant: 'essential',
                     premiumUntil: Timestamp.fromMillis(
-                      Date.now() + 30 * 86400000,
+                      Date.now() + PREMIUM_SUBSCRIPTION_DAYS * 86400000,
                     ),
                   })
-                }
-                await refreshProfile()
-              }}
-              className="mt-2 text-xs text-slate-500 underline hover:text-slate-300"
-            >
-              Simular premium / downgrade (dev)
-            </button>
+                  await refreshProfile()
+                  toast.success('Simulado: Premium Essencial 30 dias.')
+                }}
+                className="rounded-lg bg-white/10 px-3 py-1.5 text-xs text-slate-200 hover:bg-white/15"
+              >
+                Simular Essencial 30d
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!user) return
+                  await persistProfile(user.uid, {
+                    plan: 'premium',
+                    premiumVariant: 'complete',
+                    premiumUntil: Timestamp.fromMillis(
+                      Date.now() + PREMIUM_SUBSCRIPTION_DAYS * 86400000,
+                    ),
+                  })
+                  await refreshProfile()
+                  toast.success('Simulado: Premium Pro 30 dias.')
+                }}
+                className="rounded-lg bg-white/10 px-3 py-1.5 text-xs text-slate-200 hover:bg-white/15"
+              >
+                Simular Pro 30d
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!user || !profile) return
+                  const next = extendBoostUntil(profile.boostUntil, BOOST_1H_MS)
+                  await persistProfile(user.uid, { boostUntil: next })
+                  await refreshProfile()
+                  toast.success('Simulado: +1 h de destaque.')
+                }}
+                className="rounded-lg bg-white/10 px-3 py-1.5 text-xs text-slate-200 hover:bg-white/15"
+              >
+                Simular boost +1 h (R$ 3)
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!user || !profile) return
+                  const next = extendBoostUntil(profile.boostUntil, BOOST_2H_MS)
+                  await persistProfile(user.uid, { boostUntil: next })
+                  await refreshProfile()
+                  toast.success('Simulado: +2 h de destaque.')
+                }}
+                className="rounded-lg bg-white/10 px-3 py-1.5 text-xs text-slate-200 hover:bg-white/15"
+              >
+                Simular boost +2 h (R$ 5)
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!user) return
+                  await persistProfile(user.uid, {
+                    plan: 'free',
+                    premiumVariant: null,
+                    premiumUntil: null,
+                    boostUntil: null,
+                  })
+                  await refreshProfile()
+                  toast.success('Simulado: removido plano e destaque.')
+                }}
+                className="rounded-lg border border-red-500/40 px-3 py-1.5 text-xs text-red-300 hover:bg-red-500/10"
+              >
+                Limpar plano e boost
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -898,7 +1200,7 @@ export function ProfilePage() {
             Estatísticas detalhadas
             {!statsUnlocked && (
               <span className="ml-2 text-xs font-normal text-accent">
-                (Premium)
+                (Premium Pro — {formatBrlFromCents(PRICE_PREMIUM_COMPLETE_CENTS)}/mês)
               </span>
             )}
           </h2>
@@ -910,8 +1212,9 @@ export function ProfilePage() {
             </ul>
           ) : (
             <p className="mt-2 text-sm text-slate-500">
-              Disponível no Premium — aqui entrariam dados agregados da sua
-              conta e do histórico na plataforma.
+              Incluído no <strong className="text-slate-400">Premium Pro</strong> (
+              {formatBrlFromCents(PRICE_PREMIUM_COMPLETE_CENTS)}/mês). O Essencial mantém filtros e
+              favoritos, sem este painel.
             </p>
           )}
         </div>
