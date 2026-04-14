@@ -74,6 +74,12 @@
         ".write": false
       }
     },
+    "webhook_delivery_logs": {
+      "$id": {
+        ".read": false,
+        ".write": false
+      }
+    },
     "config": {
       "app": {
         ".read": true,

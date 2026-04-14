@@ -197,6 +197,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    /** Cópia permanente do payload Asaas (histórico além dos ~14 dias do painel Asaas). Só o backend escreve. */
+    match /webhook_delivery_logs/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

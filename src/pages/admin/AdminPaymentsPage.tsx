@@ -159,6 +159,8 @@ export function AdminPaymentsPage() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [userByUid, setUserByUid] = useState<Record<string, UserProfile>>({})
+  /** Total líquido: omitido por defeito até «Mostrar». */
+  const [showLiquidTotal, setShowLiquidTotal] = useState(false)
 
   useEffect(() => {
     if (!db) return
@@ -376,12 +378,25 @@ export function AdminPaymentsPage() {
 
   const stats = useMemo(() => {
     const byProduct = new Map<string, number>()
+    let liquidSum = 0
+    let liquidRowsWithNet = 0
     for (const r of filtered) {
       const k = r.productRef ?? '?'
       byProduct.set(k, (byProduct.get(k) ?? 0) + 1)
+      const n = r.netValue
+      if (n != null && Number.isFinite(n)) {
+        liquidSum += n
+        liquidRowsWithNet += 1
+      }
     }
     const top = [...byProduct.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6)
-    return { totalFirestore: rows.length, shown: filtered.length, top }
+    return {
+      totalFirestore: rows.length,
+      shown: filtered.length,
+      top,
+      liquidSum,
+      liquidRowsWithNet,
+    }
   }, [rows.length, filtered])
 
   const flashCopy = useCallback((key: string) => {
@@ -453,6 +468,39 @@ export function AdminPaymentsPage() {
                   .join(' · ')}
           </p>
         </div>
+      </div>
+
+      <div className="mt-3 rounded-xl border border-border bg-card px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[11px] font-semibold uppercase text-slate-500">
+            Ganho líquido (lista filtrada)
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowLiquidTotal((v) => !v)}
+            className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-white/5"
+          >
+            {showLiquidTotal ? 'Ocultar' : 'Mostrar'}
+          </button>
+        </div>
+        {showLiquidTotal ? (
+          <>
+            <p className="mt-2 text-2xl font-bold tabular-nums text-emerald-400/95">
+              {formatBrl(stats.liquidSum)}
+            </p>
+            <p className="mt-2 text-xs leading-relaxed text-slate-500">
+              Soma dos valores líquidos (<span className="font-mono">netValue</span> do Asaas) nos{' '}
+              {stats.liquidRowsWithNet} registos que têm esse campo, entre os {stats.shown} visíveis com os filtros
+              actuais. Pagamentos sem líquido gravado não entram no total — use «Sincronizar com Asaas» para
+              preencher.
+            </p>
+          </>
+        ) : (
+          <p className="mt-2 text-xs text-slate-600">
+            Total omitido. Mostre quando quiser ver quanto já entrou de líquido na plataforma (só com base nos
+            registos e filtros actuais).
+          </p>
+        )}
       </div>
 
       <div className="mt-6 rounded-xl border border-border bg-card p-4">
