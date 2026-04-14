@@ -9,6 +9,9 @@ type ProductRefValue = (typeof PRODUCT_REF)[keyof typeof PRODUCT_REF]
  * Opcional: no link, define `callback.successUrl` para `.../app/perfil?pagamento=sucesso` (o perfil
  * actualiza ao voltares do Asaas). Ver script `scripts/fetch-asaas-payment-link-urls.mjs`.
  *
+ * Para o servidor activar o plano (webhook), o email que o pagador indica no Asaas deve ser o **mesmo**
+ * do login Firebase (ex. Google) da conta no SemAleatório.
+ *
  * @see https://docs.asaas.com/docs/criando-um-link-de-pagamentos
  */
 export const URL_PREMIUM_ESSENTIAL = 'https://sandbox.asaas.com/c/ijq2aoj3of0yqtpp'

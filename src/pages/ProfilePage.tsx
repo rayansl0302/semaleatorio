@@ -947,9 +947,12 @@ export function ProfilePage() {
             >
               API Asaas
             </a>
-            ). Podes configurar no link um <strong className="text-slate-300">URL de retorno</strong> para
-            esta página com <span className="font-mono text-slate-500">?pagamento=sucesso</span> (a app
-            actualiza o perfil ao voltares).{' '}
+            ). Para o plano actualizar automaticamente no perfil, o webhook precisa de associar o pagamento
+            ao teu utilizador: usa no Asaas o <strong className="text-slate-300">mesmo email</strong> da
+            conta com que entras aqui. Podes configurar também um{' '}
+            <strong className="text-slate-300">URL de retorno</strong> com{' '}
+            <span className="font-mono text-slate-500">?pagamento=sucesso</span> (refrescar o perfil ao
+            voltares).{' '}
             <a
               href="https://docs.asaas.com/docs/criando-um-link-de-pagamentos"
               target="_blank"

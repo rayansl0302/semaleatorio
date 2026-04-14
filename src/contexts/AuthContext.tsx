@@ -35,8 +35,10 @@ import {
   userProfileDoc,
 } from '../lib/firestoreUserProfile'
 import { detectDefaultRegion } from '../lib/detectRegion'
+import { detectProfileBenefitUpgrade } from '../lib/detectProfileBenefitUpgrade'
 import { profileSlugFromNick } from '../lib/profileSlug'
 import type { UserProfile } from '../types/models'
+import { toast } from 'sonner'
 
 type AuthContextValue = {
   user: User | null
@@ -108,6 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return
       }
       const pref = userProfileDoc(db, uid)
+      let firstSnapshot = true
       const unsub = onSnapshot(
         pref,
         (snap) => {
@@ -116,7 +119,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             return
           }
           const p = normalizeUserFromFirestore(snap.data(), uid)
-          setProfile(p)
+          if (!p) {
+            setProfile(null)
+            return
+          }
+          if (firstSnapshot) {
+            firstSnapshot = false
+            setProfile(p)
+            return
+          }
+          setProfile((prevState) => {
+            if (!snap.metadata.hasPendingWrites && prevState) {
+              const kind = detectProfileBenefitUpgrade(prevState, p)
+              if (kind === 'premium') {
+                toast.success('Plano Premium activo — pagamento confirmado no servidor.')
+              } else if (kind === 'boost') {
+                toast.success('Destaque na lista activo.')
+              }
+            }
+            return p
+          })
         },
         () => setProfile(null),
       )
