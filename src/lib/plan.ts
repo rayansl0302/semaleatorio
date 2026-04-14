@@ -7,9 +7,9 @@ export function isPremiumActive(
 ): boolean {
   if (!p || p.plan !== 'premium') return false
   const u = p.premiumUntil
-  if (u == null) return true
+  if (u == null) return false
   if (typeof u.toMillis === 'function') return u.toMillis() > Date.now()
-  return true
+  return false
 }
 
 /**

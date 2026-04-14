@@ -76,6 +76,17 @@ export function normalizeUserFromFirestore(
   const fcmList = readStringList(data.fcmTokens)
   const fcmTokens = fcmList.length > 0 ? fcmList : undefined
 
+  const premiumUntilTs = asTimestamp(data.premiumUntil)
+  const premiumExpired =
+    data.plan === 'premium' &&
+    (premiumUntilTs == null ||
+      (typeof premiumUntilTs.toMillis === 'function' && premiumUntilTs.toMillis() <= Date.now()))
+  const boostUntilTs = asTimestamp(data.boostUntil)
+  const boostExpired =
+    boostUntilTs != null &&
+    typeof boostUntilTs.toMillis === 'function' &&
+    boostUntilTs.toMillis() <= Date.now()
+
   return {
     uid,
     nickname,
@@ -87,8 +98,8 @@ export function normalizeUserFromFirestore(
     ratingAvg: typeof data.ratingAvg === 'number' ? data.ratingAvg : 0,
     ratingCount: typeof data.ratingCount === 'number' ? data.ratingCount : 0,
     lastOnline: asTimestamp(data.lastOnline),
-    plan: data.plan === 'premium' ? 'premium' : 'free',
-    premiumVariant: readPremiumVariant(data.premiumVariant),
+    plan: data.plan === 'premium' && !premiumExpired ? 'premium' : 'free',
+    premiumVariant: premiumExpired ? undefined : readPremiumVariant(data.premiumVariant),
     semiAleatorio: Boolean(data.semiAleatorio),
     playerTags,
     queueTypes:
@@ -96,7 +107,7 @@ export function normalizeUserFromFirestore(
         ? queueTypesRaw
         : (['duo', 'flex', 'clash'] as QueueType[]),
     favoriteUids,
-    boostUntil: asTimestamp(data.boostUntil),
+    boostUntil: boostExpired ? null : boostUntilTs,
     riotPuuid: typeof data.riotPuuid === 'string' ? data.riotPuuid : undefined,
     playingNow: Boolean(data.playingNow),
     createdAt: asTimestamp(data.createdAt),
@@ -104,7 +115,7 @@ export function normalizeUserFromFirestore(
     region: typeof data.region === 'string' ? data.region : undefined,
     shadowBanned: Boolean(data.shadowBanned),
     reportsCount: typeof data.reportsCount === 'number' ? data.reportsCount : undefined,
-    premiumUntil: asTimestamp(data.premiumUntil),
+    premiumUntil: premiumExpired ? null : premiumUntilTs,
     asaasCustomerId:
       typeof data.asaasCustomerId === 'string' ? data.asaasCustomerId : undefined,
     cpf: typeof data.cpf === 'string' ? data.cpf : undefined,

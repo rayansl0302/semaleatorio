@@ -30,12 +30,26 @@ export function FeedHomePage() {
 
   const presenceList = useMemo(() => {
     const list = players.filter((p) => !p.shadowBanned) as UserProfile[]
+
+    function tierOf(p: UserProfile): number {
+      if (isPremiumActive(p)) {
+        return premiumVariantOf(p) === 'complete' ? 3 : 2
+      }
+      const b = p.boostUntil
+      if (b && typeof b.toMillis === 'function' && b.toMillis() > Date.now()) return 1
+      return 0
+    }
+
     return list
       .map((p) => ({
         p,
+        tier: tierOf(p),
         t: p.lastOnline?.toMillis?.() ?? 0,
       }))
-      .sort((a, b) => b.t - a.t)
+      .sort((a, b) => {
+        if (a.tier !== b.tier) return b.tier - a.tier
+        return b.t - a.t
+      })
       .slice(0, 28)
       .map((x) => x.p)
   }, [players])

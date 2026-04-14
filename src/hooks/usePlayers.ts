@@ -8,29 +8,40 @@ import {
   mergeRatingIntoProfile,
   type RatingAgg,
 } from '../lib/ratingsFirestore'
-import { isPremiumActive } from '../lib/plan'
+import { isPremiumActive, premiumVariantOf } from '../lib/plan'
 import type { UserProfile } from '../types/models'
 
-function boostScore(p: UserProfile): number {
+function tierOf(p: UserProfile): number {
+  if (isPremiumActive(p)) {
+    return premiumVariantOf(p) === 'complete' ? 3 : 2
+  }
   const b = p.boostUntil
-  if (!b || typeof b.toMillis !== 'function') return 0
-  return b.toMillis() > Date.now() ? b.toMillis() : 0
+  if (b && typeof b.toMillis === 'function' && b.toMillis() > Date.now()) return 1
+  return 0
 }
 
+function fairHash(uid: string): number {
+  let h = 0
+  for (let i = 0; i < uid.length; i++) h = ((h << 5) - h + uid.charCodeAt(i)) | 0
+  return Math.abs(h)
+}
+
+const ROTATION_INTERVAL_MS = 10 * 60_000
+
 function sortPlayers(list: UserProfile[]): UserProfile[] {
+  const epoch = Math.floor(Date.now() / ROTATION_INTERVAL_MS)
   return [...list].sort((a, b) => {
-    const boostDiff = boostScore(b) - boostScore(a)
-    if (boostDiff !== 0) return boostDiff
-    const pa = isPremiumActive(a)
-    const pb = isPremiumActive(b)
-    if (pa && !pb) return -1
-    if (pb && !pa) return 1
+    const tierDiff = tierOf(b) - tierOf(a)
+    if (tierDiff !== 0) return tierDiff
     if (a.playingNow && !b.playingNow) return -1
     if (b.playingNow && !a.playingNow) return 1
     const ra = a.ratingCount > 0 ? a.ratingAvg : 0
     const rb = b.ratingCount > 0 ? b.ratingAvg : 0
     if (rb !== ra) return rb - ra
-    return eloRank(b.elo) - eloRank(a.elo)
+    const ea = eloRank(a.elo)
+    const eb = eloRank(b.elo)
+    if (eb !== ea) return eb - ea
+    return ((fairHash(a.uid) + epoch) % 997) - ((fairHash(b.uid) + epoch) % 997)
   })
 }
 
