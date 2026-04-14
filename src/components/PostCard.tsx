@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { db } from '../firebase/config'
 import { normalizeUserFromFirestore, userProfileDoc } from '../lib/firestoreUserProfile'
 import { Send } from '../lib/icons'
+import { isPremiumActive, premiumVariantOf } from '../lib/plan'
 import { openMessagesDockWithPeer } from '../lib/messageDock'
 import { LolEloIcon, LolRoleIcon } from './LolIcons'
 import {
@@ -66,13 +67,39 @@ export function PostCard({ post, onAuthorClick, viewerUid }: Props) {
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {author && (
-          <button
-            type="button"
-            onClick={() => onAuthorClick?.(post.uid)}
-            className="text-left text-xs text-slate-500 underline-offset-2 hover:text-primary hover:underline"
-          >
-            Por {author.nickname}#{author.tag}
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => onAuthorClick?.(post.uid)}
+              className="text-left text-xs text-slate-500 underline-offset-2 hover:text-primary hover:underline"
+            >
+              Por {author.nickname}#{author.tag}
+            </button>
+            {isPremiumActive(author) && (
+              <span
+                className={
+                  premiumVariantOf(author) === 'essential'
+                    ? 'rounded-full bg-gradient-to-r from-slate-400 to-slate-500 px-2 py-0.5 text-[10px] font-bold text-black'
+                    : 'rounded-full bg-gradient-to-r from-amber-400 to-amber-600 px-2 py-0.5 text-[10px] font-bold text-black'
+                }
+              >
+                {premiumVariantOf(author) === 'essential' ? 'Premium' : 'Premium Pro'}
+              </span>
+            )}
+            {(() => {
+              const endMs =
+                author.boostUntil &&
+                typeof author.boostUntil.toMillis === 'function'
+                  ? author.boostUntil.toMillis()
+                  : 0
+              if (endMs <= Date.now()) return null
+              return (
+                <span className="rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-bold text-accent">
+                  ⚡ Destaque
+                </span>
+              )
+            })()}
+          </>
         )}
         {viewerUid && viewerUid !== post.uid && (
           <button
