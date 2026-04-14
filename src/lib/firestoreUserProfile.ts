@@ -120,6 +120,7 @@ export function normalizeUserFromFirestore(
       typeof data.asaasCustomerId === 'string' ? data.asaasCustomerId : undefined,
     cpf: typeof data.cpf === 'string' ? data.cpf : undefined,
     fcmTokens,
+    adminPanelOnly: Boolean(data.adminPanelOnly),
   }
 }
 

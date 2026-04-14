@@ -28,6 +28,7 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 import { auth, db, firebaseReady } from '../firebase/config'
+import { adminDocRef } from '../lib/firestoreAdmin'
 import {
   initialUserFirestorePayload,
   normalizeUserFromFirestore,
@@ -214,6 +215,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, 60_000)
     return () => window.clearInterval(iv)
   }, [user])
+
+  /** Staff: marca `adminPanelOnly` ao iniciar sessão (não depende de abrir /admin primeiro). */
+  useEffect(() => {
+    if (!db || !user?.uid) return
+    let cancelled = false
+    void (async () => {
+      const snap = await getDoc(adminDocRef(db, user.uid))
+      if (cancelled || !snap.exists()) return
+      const role = (snap.data() as { role?: string })?.role
+      if (role !== 'global') return
+      await setDoc(userProfileDoc(db, user.uid), { adminPanelOnly: true }, { merge: true })
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [user?.uid])
 
   const updateLocalProfile = useCallback((patch: Partial<UserProfile>) => {
     setProfile((prev) => (prev ? { ...prev, ...patch } : prev))

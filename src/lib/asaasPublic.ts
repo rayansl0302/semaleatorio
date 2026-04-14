@@ -1,7 +1,9 @@
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL?.trim().replace(/\/$/, '') ?? ''
+export function getBackendBaseUrl(): string {
+  return import.meta.env.VITE_BACKEND_URL?.trim().replace(/\/$/, '') ?? ''
+}
 
 export function isBackendConfigured(): boolean {
-  return BACKEND_URL.length > 0
+  return getBackendBaseUrl().length > 0
 }
 
 /**
@@ -13,7 +15,7 @@ export async function createCheckout(params: {
   productRef: string
   cpf: string
 }): Promise<string> {
-  const res = await fetch(`${BACKEND_URL}/api/checkout`, {
+  const res = await fetch(`${getBackendBaseUrl()}/api/checkout`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -33,4 +35,62 @@ export async function createCheckout(params: {
   const data = (await res.json()) as { invoiceUrl?: string }
   if (!data.invoiceUrl) throw new Error('invoiceUrl não retornada pelo servidor.')
   return data.invoiceUrl
+}
+
+/**
+ * Painel admin: percorre os N registos mais recentes em `webhook_events` e actualiza cada um
+ * com valor bruto, líquido e método vindos da API Asaas (quando aplicável).
+ */
+export async function adminSyncWebhookPaymentsFromAsaas(params: {
+  firebaseIdToken: string
+  /** Predefinição no servidor: 200; máximo 500. */
+  limit?: number
+}): Promise<{
+  ok: true
+  examined: number
+  updated: number
+  noChange: number
+  skippedRef: number
+  asaasError: number
+}> {
+  const res = await fetch(`${getBackendBaseUrl()}/api/admin/sync-webhook-payments`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.firebaseIdToken}`,
+    },
+    body: JSON.stringify(
+      params.limit != null && Number.isFinite(params.limit)
+        ? { limit: Math.floor(params.limit) }
+        : {},
+    ),
+  })
+
+  const body = (await res.json().catch(() => ({}))) as {
+    ok?: unknown
+    examined?: unknown
+    updated?: unknown
+    noChange?: unknown
+    skippedRef?: unknown
+    asaasError?: unknown
+    error?: unknown
+    message?: unknown
+  }
+
+  if (!res.ok) {
+    const msg =
+      (typeof body.message === 'string' && body.message) ||
+      (typeof body.error === 'string' && body.error) ||
+      `Erro ${res.status}`
+    throw new Error(msg)
+  }
+
+  return {
+    ok: true,
+    examined: typeof body.examined === 'number' ? body.examined : 0,
+    updated: typeof body.updated === 'number' ? body.updated : 0,
+    noChange: typeof body.noChange === 'number' ? body.noChange : 0,
+    skippedRef: typeof body.skippedRef === 'number' ? body.skippedRef : 0,
+    asaasError: typeof body.asaasError === 'number' ? body.asaasError : 0,
+  }
 }

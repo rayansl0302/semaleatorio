@@ -137,7 +137,7 @@ export function ProfilePage() {
         return
       }
       const p = normalizeUserFromFirestore(snap.data(), viewUid)
-      if (!p || p.shadowBanned) {
+      if (!p || p.shadowBanned || p.adminPanelOnly) {
         setViewProfile(null)
         return
       }

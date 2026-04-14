@@ -23,3 +23,20 @@ export function formatBrlFromCents(cents: number): string {
     currency: 'BRL',
   })
 }
+
+/** Preço de referência em R$ (sem centavos fracionários) para UI quando o webhook não gravou `value`. */
+export function catalogPriceBrlFromProductRef(productRef: string | undefined): number | undefined {
+  if (!productRef) return undefined
+  switch (productRef) {
+    case PRODUCT_REF.premiumEssential:
+      return PRICE_PREMIUM_ESSENTIAL_CENTS / 100
+    case PRODUCT_REF.premiumComplete:
+      return PRICE_PREMIUM_COMPLETE_CENTS / 100
+    case PRODUCT_REF.boost1h:
+      return PRICE_BOOST_1H_CENTS / 100
+    case PRODUCT_REF.boost2h:
+      return PRICE_BOOST_2H_CENTS / 100
+    default:
+      return undefined
+  }
+}

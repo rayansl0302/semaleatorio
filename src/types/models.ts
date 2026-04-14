@@ -39,6 +39,11 @@ export interface UserProfile {
   cpf?: string
   asaasCustomerId?: string
   fcmTokens?: string[]
+  /**
+   * Conta só para o painel /admin: esconde o perfil do mural, mensagens, feed e /u/…
+   * Sincronizado com `admins/{uid}` (regras Firestore impedem marcar sem doc em admins).
+   */
+  adminPanelOnly?: boolean
 }
 
 /** Card de exemplo quando a base ainda é pequena */

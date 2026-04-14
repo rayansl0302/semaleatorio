@@ -62,7 +62,7 @@ export function usePlayers() {
         const list: UserProfile[] = []
         snap.forEach((d) => {
           const p = normalizeUserFromFirestore(d.data(), d.id)
-          if (!p || p.shadowBanned) return
+          if (!p || p.shadowBanned || p.adminPanelOnly) return
           list.push(p)
         })
         setBasePlayers(list)

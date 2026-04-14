@@ -8,6 +8,7 @@ import { FirebaseConfigNotice } from '../components/FirebaseConfigNotice'
 import { useAuth } from '../contexts/AuthContext'
 import { firebaseFeedBlockedReason } from '../firebase/config'
 import { useAppConfig } from '../hooks/useAppConfig'
+import { useAdminPanelOnlyUids } from '../hooks/useAdminPanelOnlyUids'
 import { usePlayers } from '../hooks/usePlayers'
 import { usePosts } from '../hooks/usePosts'
 import { isPremiumActive, premiumVariantOf } from '../lib/plan'
@@ -15,11 +16,17 @@ import { formatLastSeenAgo, isRecentlyActive } from '../lib/timeAgoFirestore'
 import type { UserProfile } from '../types/models'
 
 export function FeedHomePage() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const navigate = useNavigate()
   const appConfig = useAppConfig()
   const { players } = usePlayers()
   const { posts, error: postsError } = usePosts()
+  const staffUids = useAdminPanelOnlyUids()
+
+  const postsVisible = useMemo(
+    () => posts.filter((post) => !staffUids.has(post.uid)),
+    [posts, staffUids],
+  )
 
   const lfgCount = useMemo(
     () => players.filter((p) => p.status === 'LFG' && !p.shadowBanned).length,
@@ -243,7 +250,11 @@ export function FeedHomePage() {
 
           <section>
             <h2 className="mb-4 text-lg font-bold text-white">Publicar</h2>
-            {user ? (
+            {user && profile?.adminPanelOnly ? (
+              <div className="rounded-xl border border-border bg-card p-6 text-sm text-slate-400">
+                Esta conta é só para o painel administrativo — não publica no feed.
+              </div>
+            ) : user ? (
               <PostComposer uid={user.uid} />
             ) : (
               <div className="rounded-xl border border-border bg-card p-6 text-sm text-slate-400">
@@ -264,7 +275,7 @@ export function FeedHomePage() {
               <p className="mb-3 text-sm text-red-400">Erro: {postsError}</p>
             )}
             <div className="space-y-4">
-              {posts.map((post) => (
+              {postsVisible.map((post) => (
                 <PostCard
                   key={post.id}
                   post={post}
@@ -273,7 +284,7 @@ export function FeedHomePage() {
                 />
               ))}
             </div>
-            {posts.length === 0 && (
+            {postsVisible.length === 0 && (
               <p className="rounded-xl border border-dashed border-border py-10 text-center text-sm text-slate-500">
                 Nenhum post ainda. Seja o primeiro a pedir duo ou flex — ou abra{' '}
                 <Link to="/app/jogadores" className="text-primary hover:underline">

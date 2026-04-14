@@ -11,6 +11,7 @@ import {
 import { useAuth } from './AuthContext'
 import { useToast } from './ToastContext'
 import { useChatFocus } from './ChatFocusContext'
+import { useAdminPanelOnlyUids } from '../hooks/useAdminPanelOnlyUids'
 import { useMessageThreads } from '../hooks/useMessageThreads'
 import { loadThreadReadMap, saveThreadReadMap, type ThreadReadMap } from '../lib/messageReadStorage'
 import { playIncomingMessageChime } from '../lib/messagePingSound'
@@ -48,11 +49,16 @@ type MessageThreadsContextValue = {
 
 const MessageThreadsContext = createContext<MessageThreadsContextValue | undefined>(undefined)
 
+function peerUidForMessage(m: MessageDoc, myUid: string): string {
+  return m.fromUid === myUid ? m.toUid : m.fromUid
+}
+
 function useIncomingPing(
   myUid: string | undefined,
   toList: MessageDoc[],
   focusedPeerUid: string | null,
   toastInfo: (msg: string) => void,
+  staffUids: ReadonlySet<string>,
 ) {
   const toastRef = useRef(toastInfo)
   toastRef.current = toastInfo
@@ -76,7 +82,11 @@ function useIncomingPing(
       if (m.fromUid !== myUid) newlyArrived.push(m)
     }
 
-    const relevant = newlyArrived.filter((m) => m.fromUid !== focusedPeerUid)
+    const relevant = newlyArrived.filter(
+      (m) =>
+        m.fromUid !== focusedPeerUid &&
+        !staffUids.has(peerUidForMessage(m, myUid)),
+    )
     if (relevant.length === 0) return
 
     playIncomingMessageChime()
@@ -90,7 +100,7 @@ function useIncomingPing(
         `${relevant.length} novas mensagens${preview ? ` · ${preview}` : ''}`,
       )
     }
-  }, [myUid, toList, focusedPeerUid])
+  }, [myUid, toList, focusedPeerUid, staffUids])
 }
 
 export function MessageThreadsProvider({ children }: { children: ReactNode }) {
@@ -98,6 +108,18 @@ export function MessageThreadsProvider({ children }: { children: ReactNode }) {
   const toast = useToast()
   const { focusedThreadPeerUid } = useChatFocus()
   const { threads, toList } = useMessageThreads(user?.uid)
+  const staffUids = useAdminPanelOnlyUids()
+
+  const threadsVisible = useMemo(
+    () => threads.filter((t) => !staffUids.has(t.peerUid)),
+    [threads, staffUids],
+  )
+
+  const toListVisible = useMemo(() => {
+    const uid = user?.uid
+    if (!uid || staffUids.size === 0) return toList
+    return toList.filter((m) => !staffUids.has(peerUidForMessage(m, uid)))
+  }, [toList, user?.uid, staffUids])
 
   const [readMap, setReadMap] = useState<ThreadReadMap>(() => loadThreadReadMap())
 
@@ -127,11 +149,11 @@ export function MessageThreadsProvider({ children }: { children: ReactNode }) {
   const unreadCount = useMemo(() => {
     if (!myUid) return 0
     let n = 0
-    for (const t of threads) {
+    for (const t of threadsVisible) {
       if (isThreadUnread(t.threadId, t.last)) n += 1
     }
     return n
-  }, [threads, myUid, isThreadUnread])
+  }, [threadsVisible, myUid, isThreadUnread])
 
   const baseTitleRef = useRef<string | null>(null)
   useEffect(() => {
@@ -147,16 +169,22 @@ export function MessageThreadsProvider({ children }: { children: ReactNode }) {
     }
   }, [unreadCount])
 
-  useIncomingPing(myUid, toList, focusedThreadPeerUid, (msg) => toast.info(msg))
+  useIncomingPing(
+    myUid,
+    toListVisible,
+    focusedThreadPeerUid,
+    (msg) => toast.info(msg),
+    staffUids,
+  )
 
   const value = useMemo(
     () => ({
-      threads,
+      threads: threadsVisible,
       unreadCount,
       markThreadRead,
       isThreadUnread,
     }),
-    [threads, unreadCount, markThreadRead, isThreadUnread],
+    [threadsVisible, unreadCount, markThreadRead, isThreadUnread],
   )
 
   return (

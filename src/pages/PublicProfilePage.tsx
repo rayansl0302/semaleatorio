@@ -74,7 +74,7 @@ export function PublicProfilePage() {
         return
       }
       const p = normalizeUserFromFirestore(usrSnap.data(), uid)
-      if (p?.shadowBanned) setTarget(null)
+      if (p?.shadowBanned || p?.adminPanelOnly) setTarget(null)
       else setTarget(p)
       setLoading(false)
     })()
