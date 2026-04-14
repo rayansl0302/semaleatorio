@@ -77,24 +77,29 @@ export function PlayerCard({
     return h > 0 ? `${h}h${m > 0 ? ` ${m}min` : ''}` : `${m}min`
   })()
 
-  const cardBorderClass = (() => {
-    if (premium && premiumVar === 'complete')
-      return 'border-amber-500/50 hover:border-amber-400/70'
-    if (premium && premiumVar === 'essential')
-      return 'border-slate-400/50 hover:border-slate-300/70'
-    if (boosted) return 'border-primary/40 hover:border-primary/60'
-    return 'border-border hover:border-primary/30'
-  })()
+  const isPro = premium && premiumVar === 'complete'
+  const isEssential = premium && premiumVar === 'essential'
+
+  const cardClass = isPro
+    ? 'border-amber-400/60 bg-gradient-to-br from-amber-900/20 via-card to-card shadow-[0_0_20px_-5px_rgba(251,191,36,0.25)] hover:shadow-[0_0_28px_-4px_rgba(251,191,36,0.35)] hover:border-amber-400/80'
+    : isEssential
+      ? 'border-cyan-400/40 bg-gradient-to-br from-cyan-900/15 via-card to-card shadow-[0_0_16px_-5px_rgba(34,211,238,0.2)] hover:shadow-[0_0_22px_-4px_rgba(34,211,238,0.3)] hover:border-cyan-400/60'
+      : boosted
+        ? 'border-emerald-400/50 bg-gradient-to-br from-emerald-900/15 via-card to-card shadow-[0_0_16px_-5px_rgba(52,211,153,0.2)] hover:shadow-[0_0_22px_-4px_rgba(52,211,153,0.3)] hover:border-emerald-400/70'
+        : 'border-border bg-card shadow-lg hover:border-primary/30'
 
   return (
-    <article className={`relative flex flex-col rounded-xl border ${cardBorderClass} bg-card p-4 shadow-lg transition`}>
+    <article className={`relative flex flex-col overflow-hidden rounded-xl border p-4 transition-all duration-200 ${cardClass}`}>
+      {isPro && (
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(105deg,transparent_40%,rgba(251,191,36,0.05)_45%,rgba(251,191,36,0.1)_50%,rgba(251,191,36,0.05)_55%,transparent_60%)] animate-[shimmer_3s_infinite]" />
+      )}
       {isSeed && (
         <span className="absolute left-2 top-2 rounded bg-secondary/30 px-2 py-0.5 text-[10px] font-semibold uppercase text-blue-200">
           Exemplo
         </span>
       )}
       {boosted && (
-        <span className="absolute -right-1 -top-1 rounded-bl-lg rounded-tr-lg bg-accent px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-black">
+        <span className={`absolute -right-1 -top-1 rounded-bl-lg rounded-tr-lg px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${isPro ? 'bg-gradient-to-r from-amber-400 to-yellow-300 text-amber-950' : isEssential ? 'bg-gradient-to-r from-cyan-300 to-cyan-400 text-cyan-950' : 'bg-gradient-to-r from-emerald-400 to-emerald-500 text-emerald-950'}`}>
           ⚡ {boostRemainLabel}
         </span>
       )}
@@ -109,9 +114,9 @@ export function PlayerCard({
             {premium && (
               <span
                 className={
-                  premiumVar === 'essential'
-                    ? 'rounded-full bg-gradient-to-r from-slate-400 to-slate-500 px-2 py-0.5 text-[10px] font-bold uppercase text-black'
-                    : 'rounded-full bg-gradient-to-r from-amber-400 to-amber-600 px-2 py-0.5 text-[10px] font-bold uppercase text-black'
+                  isPro
+                    ? 'rounded bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-amber-950 shadow-sm shadow-amber-400/30'
+                    : 'rounded bg-gradient-to-r from-cyan-300 via-cyan-200 to-cyan-400 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-cyan-950 shadow-sm shadow-cyan-400/20'
                 }
               >
                 {premiumVar === 'essential' ? 'Premium' : 'Premium Pro'}

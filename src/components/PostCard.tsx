@@ -45,22 +45,30 @@ export function PostCard({ post, onAuthorClick, viewerUid }: Props) {
         })
       : ''
 
-  const authorBorderClass = (() => {
-    if (!author) return 'border-border'
-    if (isPremiumActive(author) && premiumVariantOf(author) === 'complete')
-      return 'border-amber-500/50'
-    if (isPremiumActive(author) && premiumVariantOf(author) === 'essential')
-      return 'border-slate-400/50'
+  const authorIsPro = author && isPremiumActive(author) && premiumVariantOf(author) === 'complete'
+  const authorIsEssential = author && isPremiumActive(author) && premiumVariantOf(author) === 'essential'
+  const authorBoosted = (() => {
+    if (!author) return false
     const bEnd =
       author.boostUntil && typeof author.boostUntil.toMillis === 'function'
         ? author.boostUntil.toMillis()
         : 0
-    if (bEnd > Date.now()) return 'border-primary/40'
-    return 'border-border'
+    return bEnd > Date.now()
   })()
 
+  const postCardClass = authorIsPro
+    ? 'border-amber-400/50 bg-gradient-to-r from-amber-900/15 via-card to-card shadow-[0_0_16px_-5px_rgba(251,191,36,0.2)]'
+    : authorIsEssential
+      ? 'border-cyan-400/35 bg-gradient-to-r from-cyan-900/10 via-card to-card shadow-[0_0_12px_-5px_rgba(34,211,238,0.15)]'
+      : authorBoosted
+        ? 'border-emerald-400/40 bg-gradient-to-r from-emerald-900/10 via-card to-card shadow-[0_0_12px_-5px_rgba(52,211,153,0.15)]'
+        : 'border-border bg-card'
+
   return (
-    <article className={`rounded-xl border ${authorBorderClass} bg-card p-4`}>
+    <article className={`relative overflow-hidden rounded-xl border p-4 ${postCardClass}`}>
+      {authorIsPro && (
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(105deg,transparent_40%,rgba(251,191,36,0.04)_45%,rgba(251,191,36,0.08)_50%,rgba(251,191,36,0.04)_55%,transparent_60%)] animate-[shimmer_3s_infinite]" />
+      )}
       <div className="flex items-start justify-between gap-2">
         <h3 className="font-semibold text-white">{post.title}</h3>
         <span className="shrink-0 text-xs text-slate-500">{date}</span>
@@ -89,30 +97,21 @@ export function PostCard({ post, onAuthorClick, viewerUid }: Props) {
             >
               Por {author.nickname}#{author.tag}
             </button>
-            {isPremiumActive(author) && (
-              <span
-                className={
-                  premiumVariantOf(author) === 'essential'
-                    ? 'rounded-full bg-gradient-to-r from-slate-400 to-slate-500 px-2 py-0.5 text-[10px] font-bold text-black'
-                    : 'rounded-full bg-gradient-to-r from-amber-400 to-amber-600 px-2 py-0.5 text-[10px] font-bold text-black'
-                }
-              >
-                {premiumVariantOf(author) === 'essential' ? 'Premium' : 'Premium Pro'}
+            {authorIsPro && (
+              <span className="rounded bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-amber-950 shadow-sm shadow-amber-400/30">
+                PRO
               </span>
             )}
-            {(() => {
-              const endMs =
-                author.boostUntil &&
-                typeof author.boostUntil.toMillis === 'function'
-                  ? author.boostUntil.toMillis()
-                  : 0
-              if (endMs <= Date.now()) return null
-              return (
-                <span className="rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-bold text-accent">
-                  ⚡ Destaque
-                </span>
-              )
-            })()}
+            {authorIsEssential && (
+              <span className="rounded bg-gradient-to-r from-cyan-300 via-cyan-200 to-cyan-400 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-cyan-950 shadow-sm shadow-cyan-400/20">
+                Premium
+              </span>
+            )}
+            {authorBoosted && (
+              <span className="rounded bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300 ring-1 ring-emerald-500/30">
+                ⚡ Destaque
+              </span>
+            )}
           </>
         )}
         {viewerUid && viewerUid !== post.uid && (

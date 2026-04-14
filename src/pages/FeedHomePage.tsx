@@ -80,23 +80,38 @@ export function FeedHomePage() {
                     p.boostUntil &&
                     typeof p.boostUntil.toMillis === 'function' &&
                     p.boostUntil.toMillis() > Date.now()
-                  const presenceBorder = (() => {
-                    if (pPremium && pVar === 'complete')
-                      return 'ring-1 ring-amber-500/40'
-                    if (pPremium && pVar === 'essential')
-                      return 'ring-1 ring-slate-400/40'
-                    if (pBoosted) return 'ring-1 ring-primary/30'
-                    return ''
-                  })()
+
+                  const isPro = pPremium && pVar === 'complete'
+                  const isEssential = pPremium && pVar === 'essential'
+
+                  const itemClass = isPro
+                    ? 'relative overflow-hidden rounded-xl border border-amber-400/60 bg-gradient-to-r from-amber-900/30 via-amber-800/10 to-transparent px-2.5 py-2.5 shadow-[0_0_12px_-3px_rgba(251,191,36,0.3)] hover:shadow-[0_0_18px_-2px_rgba(251,191,36,0.4)] hover:border-amber-400/80'
+                    : isEssential
+                      ? 'relative overflow-hidden rounded-xl border border-cyan-400/40 bg-gradient-to-r from-cyan-900/20 via-cyan-800/5 to-transparent px-2.5 py-2.5 shadow-[0_0_10px_-3px_rgba(34,211,238,0.2)] hover:shadow-[0_0_14px_-2px_rgba(34,211,238,0.3)] hover:border-cyan-400/60'
+                      : pBoosted
+                        ? 'relative overflow-hidden rounded-xl border border-emerald-400/50 bg-gradient-to-r from-emerald-900/20 via-emerald-800/5 to-transparent px-2.5 py-2.5 shadow-[0_0_10px_-3px_rgba(52,211,153,0.25)] hover:shadow-[0_0_14px_-2px_rgba(52,211,153,0.35)] hover:border-emerald-400/70'
+                        : 'rounded-xl px-2 py-2 hover:bg-white/[0.06]'
+
+                  const avatarBg = isPro
+                    ? 'bg-gradient-to-br from-amber-600/60 to-amber-900/40 ring-2 ring-amber-400/70 shadow-[0_0_8px_rgba(251,191,36,0.4)]'
+                    : isEssential
+                      ? 'bg-gradient-to-br from-cyan-600/40 to-cyan-900/30 ring-2 ring-cyan-400/50 shadow-[0_0_8px_rgba(34,211,238,0.3)]'
+                      : pBoosted
+                        ? 'bg-gradient-to-br from-emerald-600/40 to-emerald-900/30 ring-2 ring-emerald-400/60 shadow-[0_0_8px_rgba(52,211,153,0.3)]'
+                        : 'bg-secondary/35'
+
                   return (
-                    <li key={p.uid}>
+                    <li key={p.uid} className={isPro || isEssential || pBoosted ? 'mt-1.5' : ''}>
                       <button
                         type="button"
                         onClick={() => navigate(`/app/perfil?u=${p.uid}`)}
-                        className={`flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left transition hover:bg-white/[0.06] ${presenceBorder}`}
+                        className={`flex w-full items-center gap-2.5 text-left transition-all duration-200 ${itemClass}`}
                       >
+                        {isPro && (
+                          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(105deg,transparent_40%,rgba(251,191,36,0.06)_45%,rgba(251,191,36,0.12)_50%,rgba(251,191,36,0.06)_55%,transparent_60%)] animate-[shimmer_3s_infinite]" />
+                        )}
                         <div className="relative shrink-0">
-                          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary/35 text-xs font-bold text-white">
+                          <span className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold text-white ${avatarBg}`}>
                             {initial}
                           </span>
                           <span
@@ -106,24 +121,23 @@ export function FeedHomePage() {
                             title={active ? 'Ativo agora' : 'Inativo'}
                           />
                         </div>
-                        <div className="min-w-0 flex-1">
+                        <div className="relative min-w-0 flex-1">
                           <div className="flex items-center gap-1.5">
                             <LolEloIcon elo={p.elo} className="h-4 w-4 shrink-0" />
-                            <span className="truncate text-xs font-medium text-white">
+                            <span className={`truncate text-xs font-semibold ${isPro ? 'text-amber-200' : isEssential ? 'text-cyan-100' : 'text-white'}`}>
                               {p.nickname}
-                              <span className="text-slate-500">#{p.tag}</span>
+                              <span className={isPro ? 'text-amber-500/60' : isEssential ? 'text-cyan-400/40' : 'text-slate-500'}>#{p.tag}</span>
                             </span>
                           </div>
                           <div className="mt-0.5 flex flex-wrap items-center gap-1">
-                            {isPremiumActive(p) && (
-                              <span
-                                className={
-                                  premiumVariantOf(p) === 'essential'
-                                    ? 'rounded-full bg-gradient-to-r from-slate-400 to-slate-500 px-1.5 py-px text-[9px] font-bold text-black'
-                                    : 'rounded-full bg-gradient-to-r from-amber-400 to-amber-600 px-1.5 py-px text-[9px] font-bold text-black'
-                                }
-                              >
-                                {premiumVariantOf(p) === 'essential' ? 'Premium' : 'Pro'}
+                            {isPro && (
+                              <span className="rounded bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 px-1.5 py-px text-[9px] font-extrabold uppercase tracking-wider text-amber-950 shadow-sm shadow-amber-400/30">
+                                PRO
+                              </span>
+                            )}
+                            {isEssential && (
+                              <span className="rounded bg-gradient-to-r from-cyan-300 via-cyan-200 to-cyan-400 px-1.5 py-px text-[9px] font-extrabold uppercase tracking-wider text-cyan-950 shadow-sm shadow-cyan-400/20">
+                                Premium
                               </span>
                             )}
                             {(() => {
@@ -138,14 +152,14 @@ export function FeedHomePage() {
                               const m = totalMin % 60
                               const label = h > 0 ? `${h}h${m > 0 ? `${m}m` : ''}` : `${m}m`
                               return (
-                                <span className="rounded-full bg-accent/20 px-1.5 py-px text-[9px] font-bold text-accent">
+                                <span className="rounded bg-emerald-500/20 px-1.5 py-px text-[9px] font-bold text-emerald-300 ring-1 ring-emerald-500/30">
                                   ⚡ {label}
                                 </span>
                               )
                             })()}
                             <span className="text-[10px] text-slate-500">
                               {active ? (
-                                <span className="text-primary/90">online</span>
+                                <span className={isPro ? 'text-amber-300/80' : isEssential ? 'text-cyan-300/70' : 'text-primary/90'}>online</span>
                               ) : (
                                 <>visto {ago}</>
                               )}
