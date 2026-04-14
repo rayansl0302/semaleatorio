@@ -2,23 +2,38 @@ import { PRODUCT_REF } from './pricing'
 
 type ProductRefValue = (typeof PRODUCT_REF)[keyof typeof PRODUCT_REF]
 
+type AsaasLinkEnvKey =
+  | 'VITE_ASAAS_LINK_PREMIUM_ESSENTIAL'
+  | 'VITE_ASAAS_LINK_PREMIUM_COMPLETE'
+  | 'VITE_ASAAS_LINK_BOOST_1H'
+  | 'VITE_ASAAS_LINK_BOOST_2H'
+
+function paymentLinkFromEnvOnly(key: AsaasLinkEnvKey): string {
+  const v = import.meta.env[key]?.trim()
+  if (!v || !/^https?:\/\//i.test(v)) return ''
+  return v
+}
+
+/** Bloqueia só hosts conhecidos de homologação; produção pode usar www, pay ou outros domínios Asaas. */
+function isSandboxAsaasCheckoutHost(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    return host === 'sandbox.asaas.com' || host.endsWith('.sandbox.asaas.com')
+  } catch {
+    return true
+  }
+}
+
 /**
- * URLs públicas dos Links de pagamento Asaas (copiar do painel ou campo `url` de POST /v3/paymentLinks).
- * Edita **só** as constantes abaixo — não precisa de .env.
- *
- * Opcional: no link, define `callback.successUrl` para `.../app/perfil?pagamento=sucesso` (o perfil
- * actualiza ao voltares do Asaas). Ver script `scripts/fetch-asaas-payment-link-urls.mjs`.
- *
- * Para o servidor activar o plano (webhook), o email que o pagador indica no Asaas deve ser o **mesmo**
- * do login Firebase (ex. Google) da conta no SemAleatório.
+ * URLs dos links de pagamento Asaas **produção** — obrigatório: `VITE_ASAAS_LINK_*` no `.env`
+ * (ex.: `https://www.asaas.com/c/...` copiado do painel). Sem fallback para sandbox.
  *
  * @see https://docs.asaas.com/docs/criando-um-link-de-pagamentos
  */
-export const URL_PREMIUM_ESSENTIAL = 'https://sandbox.asaas.com/c/ijq2aoj3of0yqtpp'
-export const URL_PREMIUM_COMPLETE = 'https://sandbox.asaas.com/c/vxsswfy6h0ftpe70'
-/** Sandbox Asaas exige mín. R$ 5,00 por cobrança; o link usa R$ 5 mesmo que a UI mostre outro valor. */
-export const URL_BOOST_1H = 'https://sandbox.asaas.com/c/ks6mpi4vba3u92ok'
-export const URL_BOOST_2H = 'https://sandbox.asaas.com/c/nnqaw3nuo1yhd9tr'
+export const URL_PREMIUM_ESSENTIAL = paymentLinkFromEnvOnly('VITE_ASAAS_LINK_PREMIUM_ESSENTIAL')
+export const URL_PREMIUM_COMPLETE = paymentLinkFromEnvOnly('VITE_ASAAS_LINK_PREMIUM_COMPLETE')
+export const URL_BOOST_1H = paymentLinkFromEnvOnly('VITE_ASAAS_LINK_BOOST_1H')
+export const URL_BOOST_2H = paymentLinkFromEnvOnly('VITE_ASAAS_LINK_BOOST_2H')
 
 export const ASAAS_PAYMENT_LINKS: Record<ProductRefValue, string> = {
   [PRODUCT_REF.premiumEssential]: URL_PREMIUM_ESSENTIAL,
@@ -30,12 +45,6 @@ export const ASAAS_PAYMENT_LINKS: Record<ProductRefValue, string> = {
 export function getAsaasPaymentLinkUrl(productRef: string): string | null {
   const raw = ASAAS_PAYMENT_LINKS[productRef as ProductRefValue]?.trim()
   if (!raw || !/^https?:\/\//i.test(raw)) return null
+  if (isSandboxAsaasCheckoutHost(raw)) return null
   return raw
-}
-
-export function hasAsaasPaymentLinksConfigured(): boolean {
-  return (Object.keys(ASAAS_PAYMENT_LINKS) as ProductRefValue[]).some((k) => {
-    const v = ASAAS_PAYMENT_LINKS[k]?.trim()
-    return Boolean(v && /^https?:\/\//i.test(v))
-  })
 }

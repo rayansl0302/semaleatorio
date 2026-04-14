@@ -37,11 +37,7 @@ import {
   PRICE_PREMIUM_ESSENTIAL_CENTS,
   PRODUCT_REF,
 } from '../lib/pricing'
-import {
-  getAsaasPaymentLinkUrl,
-  hasAsaasPaymentLinksConfigured,
-} from '../lib/asaasPaymentLinks'
-import { isClientPaymentSandbox } from '../lib/asaasPublic'
+import { getAsaasPaymentLinkUrl } from '../lib/asaasPaymentLinks'
 import {
   hasPremiumCompleteFeatures,
   isPremiumActive,
@@ -212,7 +208,6 @@ export function ProfilePage() {
   const statsUnlocked = hasPremiumCompleteFeatures(profile)
   const premiumActive = isPremiumActive(profile)
   const activeVariant = profile ? premiumVariantOf(profile) : null
-  const paymentSandbox = isClientPaymentSandbox()
 
   const mockStats = useMemo(
     () => ({
@@ -922,69 +917,6 @@ export function ProfilePage() {
       {isOwn && (
         <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">
           <h2 className="text-lg font-semibold text-white">Planos e destaque</h2>
-          <p className="mt-2 text-sm text-slate-400">
-            Pagamento seguro com <strong className="text-slate-300">PIX</strong>,{' '}
-            <strong className="text-slate-300">cartão de crédito</strong> ou{' '}
-            <strong className="text-slate-300">cartão de débito</strong> (conforme disponível no checkout).
-            Pagamento no{' '}
-            <a
-              href="https://www.asaas.com"
-              target="_blank"
-              rel="noreferrer"
-              className="text-primary underline-offset-2 hover:underline"
-            >
-              site da Asaas
-            </a>{' '}
-            (PIX / cartão conforme o link). As URLs ficam nas constantes{' '}
-            <span className="font-mono text-slate-400">URL_*</span> em{' '}
-            <span className="font-mono text-slate-500">src/lib/asaasPaymentLinks.ts</span> (públicas; em
-            produção substitui por links criados na{' '}
-            <a
-              href="https://docs.asaas.com/reference"
-              target="_blank"
-              rel="noreferrer"
-              className="font-mono text-slate-300 underline-offset-2 hover:underline"
-            >
-              API Asaas
-            </a>
-            ). Para o plano actualizar automaticamente no perfil, o webhook precisa de associar o pagamento
-            ao teu utilizador: usa no Asaas o <strong className="text-slate-300">mesmo email</strong> da
-            conta com que entras aqui. Podes configurar também um{' '}
-            <strong className="text-slate-300">URL de retorno</strong> com{' '}
-            <span className="font-mono text-slate-500">?pagamento=sucesso</span> (refrescar o perfil ao
-            voltares).{' '}
-            <a
-              href="https://docs.asaas.com/docs/criando-um-link-de-pagamentos"
-              target="_blank"
-              rel="noreferrer"
-              className="text-primary underline-offset-2 hover:underline"
-            >
-              Documentação Asaas
-            </a>
-            .
-            {!hasAsaasPaymentLinksConfigured() ? (
-              <>
-                {' '}
-                Ainda sem links — usa a <span className="text-slate-300">simulação (dev)</span> abaixo.
-              </>
-            ) : null}
-          </p>
-
-          {paymentSandbox ? (
-            <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-              <strong className="text-amber-50">Sandbox (UI)</strong> — em localhost esta app só mostra o
-              aviso; chaves e chamadas ao{' '}
-              <a
-                href="https://sandbox.asaas.com"
-                target="_blank"
-                rel="noreferrer"
-                className="font-medium text-amber-50 underline-offset-2 hover:underline"
-              >
-                Asaas
-              </a>{' '}
-              ficam no backend separado.
-            </div>
-          ) : null}
 
           <div className="mt-4 rounded-xl border border-border/80 bg-bg/40 p-4 text-sm text-slate-400">
             <p className="font-medium text-slate-200">Estado atual</p>

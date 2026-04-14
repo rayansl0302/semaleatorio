@@ -1,6 +1,6 @@
 /**
- * Lê ASAAS_API_KEY_SANDBOX do backend_semaleatorio/.env, cria links de pagamento no sandbox
- * e imprime só as URLs (para colar em src/lib/asaasPaymentLinks.ts).
+ * Lê ASAAS_API_KEY_SANDBOX do backend_semaleatorio/.env, cria links no **sandbox** e imprime URLs.
+ * O front em produção usa só `VITE_ASAAS_LINK_*` (links do painel **produção**); este script é para testes locais/API sandbox.
  * Nota: no sandbox o valor mínimo por cobrança é R$ 5,00 — o link de destaque 1h usa R$ 5,00 na API.
  *
  * `callback.successUrl` → volta ao perfil com `?pagamento=sucesso` (define ASAAS_LINK_SUCCESS_URL ou FRONTEND_APP_URL no .env do backend).
