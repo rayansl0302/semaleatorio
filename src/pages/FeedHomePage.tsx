@@ -10,6 +10,7 @@ import { firebaseFeedBlockedReason } from '../firebase/config'
 import { useAppConfig } from '../hooks/useAppConfig'
 import { usePlayers } from '../hooks/usePlayers'
 import { usePosts } from '../hooks/usePosts'
+import { isPremiumActive, premiumVariantOf } from '../lib/plan'
 import { formatLastSeenAgo, isRecentlyActive } from '../lib/timeAgoFirestore'
 import type { UserProfile } from '../types/models'
 
@@ -99,13 +100,43 @@ export function FeedHomePage() {
                               <span className="text-slate-500">#{p.tag}</span>
                             </span>
                           </div>
-                          <p className="truncate text-[10px] text-slate-500">
-                            {active ? (
-                              <span className="text-primary/90">online agora</span>
-                            ) : (
-                              <>visto {ago}</>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                            {isPremiumActive(p) && (
+                              <span
+                                className={
+                                  premiumVariantOf(p) === 'essential'
+                                    ? 'rounded-full bg-gradient-to-r from-slate-400 to-slate-500 px-1.5 py-px text-[9px] font-bold text-black'
+                                    : 'rounded-full bg-gradient-to-r from-amber-400 to-amber-600 px-1.5 py-px text-[9px] font-bold text-black'
+                                }
+                              >
+                                {premiumVariantOf(p) === 'essential' ? 'Premium' : 'Pro'}
+                              </span>
                             )}
-                          </p>
+                            {(() => {
+                              const endMs =
+                                p.boostUntil &&
+                                typeof p.boostUntil.toMillis === 'function'
+                                  ? p.boostUntil.toMillis()
+                                  : 0
+                              if (endMs <= Date.now()) return null
+                              const totalMin = Math.ceil((endMs - Date.now()) / 60_000)
+                              const h = Math.floor(totalMin / 60)
+                              const m = totalMin % 60
+                              const label = h > 0 ? `${h}h${m > 0 ? `${m}m` : ''}` : `${m}m`
+                              return (
+                                <span className="rounded-full bg-accent/20 px-1.5 py-px text-[9px] font-bold text-accent">
+                                  ⚡ {label}
+                                </span>
+                              )
+                            })()}
+                            <span className="text-[10px] text-slate-500">
+                              {active ? (
+                                <span className="text-primary/90">online</span>
+                              ) : (
+                                <>visto {ago}</>
+                              )}
+                            </span>
+                          </div>
                         </div>
                       </button>
                     </li>

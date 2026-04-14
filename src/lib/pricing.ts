@@ -1,8 +1,8 @@
 /** Valores em centavos (BRL) — alinhar com cobranças / webhook do gateway (PIX, cartão crédito/débito). */
 export const PRICE_PREMIUM_ESSENTIAL_CENTS = 1990
 export const PRICE_PREMIUM_COMPLETE_CENTS = 2990
-export const PRICE_BOOST_1H_CENTS = 300
-export const PRICE_BOOST_2H_CENTS = 500
+export const PRICE_BOOST_1H_CENTS = 500
+export const PRICE_BOOST_2H_CENTS = 800
 
 export const PREMIUM_SUBSCRIPTION_DAYS = 30
 

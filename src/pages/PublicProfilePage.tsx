@@ -21,6 +21,7 @@ import {
   mergeRatingIntoProfile,
   type RatingAgg,
 } from '../lib/ratingsFirestore'
+import { isPremiumActive, premiumVariantOf } from '../lib/plan'
 import { hasSemiAleatorioSeal } from '../lib/seal'
 import {
   BrandLogo,
@@ -194,6 +195,34 @@ export function PublicProfilePage() {
                     {formatEloDisplay(target.elo)}
                   </span>
                 </span>
+                {isPremiumActive(target) && (
+                  <span
+                    className={
+                      premiumVariantOf(target) === 'essential'
+                        ? 'rounded-full bg-gradient-to-r from-slate-400 to-slate-500 px-3 py-1 text-xs font-bold text-black'
+                        : 'rounded-full bg-gradient-to-r from-amber-400 to-amber-600 px-3 py-1 text-xs font-bold text-black'
+                    }
+                  >
+                    {premiumVariantOf(target) === 'essential' ? 'Premium' : 'Premium Pro'}
+                  </span>
+                )}
+                {(() => {
+                  const endMs =
+                    target.boostUntil &&
+                    typeof target.boostUntil.toMillis === 'function'
+                      ? target.boostUntil.toMillis()
+                      : 0
+                  if (endMs <= Date.now()) return null
+                  const totalMin = Math.ceil((endMs - Date.now()) / 60_000)
+                  const h = Math.floor(totalMin / 60)
+                  const m = totalMin % 60
+                  const label = h > 0 ? `${h}h${m > 0 ? ` ${m}min` : ''}` : `${m}min`
+                  return (
+                    <span className="rounded-full bg-accent/20 px-3 py-1 text-xs font-bold text-accent ring-1 ring-accent/30">
+                      ⚡ {label}
+                    </span>
+                  )
+                })()}
                 {seal && (
                   <span className="rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold text-primary ring-1 ring-primary/40">
                     SemAleatório ✔

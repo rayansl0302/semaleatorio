@@ -8,32 +8,23 @@ type AsaasLinkEnvKey =
   | 'VITE_ASAAS_LINK_BOOST_1H'
   | 'VITE_ASAAS_LINK_BOOST_2H'
 
-function paymentLinkFromEnvOnly(key: AsaasLinkEnvKey): string {
+/** URL pública do link de pagamento na conta Asaas de produção (campo copiado do painel / API). */
+function paymentLinkFromEnv(key: AsaasLinkEnvKey): string {
   const v = import.meta.env[key]?.trim()
-  if (!v || !/^https?:\/\//i.test(v)) return ''
-  return v
-}
-
-/** Bloqueia só hosts conhecidos de homologação; produção pode usar www, pay ou outros domínios Asaas. */
-function isSandboxAsaasCheckoutHost(url: string): boolean {
-  try {
-    const host = new URL(url).hostname.toLowerCase()
-    return host === 'sandbox.asaas.com' || host.endsWith('.sandbox.asaas.com')
-  } catch {
-    return true
-  }
+  if (v && /^https?:\/\//i.test(v)) return v
+  return ''
 }
 
 /**
- * URLs dos links de pagamento Asaas **produção** — obrigatório: `VITE_ASAAS_LINK_*` no `.env`
- * (ex.: `https://www.asaas.com/c/...` copiado do painel). Sem fallback para sandbox.
+ * Links só existem no ambiente em que foram criados: slugs do sandbox não valem em produção.
+ * Define cada `VITE_ASAAS_LINK_*` no `.env` com a URL completa do link criado em **asaas.com** (conta real).
  *
  * @see https://docs.asaas.com/docs/criando-um-link-de-pagamentos
  */
-export const URL_PREMIUM_ESSENTIAL = paymentLinkFromEnvOnly('VITE_ASAAS_LINK_PREMIUM_ESSENTIAL')
-export const URL_PREMIUM_COMPLETE = paymentLinkFromEnvOnly('VITE_ASAAS_LINK_PREMIUM_COMPLETE')
-export const URL_BOOST_1H = paymentLinkFromEnvOnly('VITE_ASAAS_LINK_BOOST_1H')
-export const URL_BOOST_2H = paymentLinkFromEnvOnly('VITE_ASAAS_LINK_BOOST_2H')
+export const URL_PREMIUM_ESSENTIAL = paymentLinkFromEnv('VITE_ASAAS_LINK_PREMIUM_ESSENTIAL')
+export const URL_PREMIUM_COMPLETE = paymentLinkFromEnv('VITE_ASAAS_LINK_PREMIUM_COMPLETE')
+export const URL_BOOST_1H = paymentLinkFromEnv('VITE_ASAAS_LINK_BOOST_1H')
+export const URL_BOOST_2H = paymentLinkFromEnv('VITE_ASAAS_LINK_BOOST_2H')
 
 export const ASAAS_PAYMENT_LINKS: Record<ProductRefValue, string> = {
   [PRODUCT_REF.premiumEssential]: URL_PREMIUM_ESSENTIAL,
@@ -45,6 +36,5 @@ export const ASAAS_PAYMENT_LINKS: Record<ProductRefValue, string> = {
 export function getAsaasPaymentLinkUrl(productRef: string): string | null {
   const raw = ASAAS_PAYMENT_LINKS[productRef as ProductRefValue]?.trim()
   if (!raw || !/^https?:\/\//i.test(raw)) return null
-  if (isSandboxAsaasCheckoutHost(raw)) return null
   return raw
 }

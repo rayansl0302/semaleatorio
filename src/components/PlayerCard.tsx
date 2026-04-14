@@ -63,10 +63,19 @@ export function PlayerCard({
   const seal = hasSemiAleatorioSeal(player) || player.semiAleatorio
   const premium = isPremiumActive(player)
   const premiumVar = premium ? premiumVariantOf(player) : null
-  const boosted =
+  const boostEndMs =
     player.boostUntil &&
-    typeof player.boostUntil.toMillis === 'function' &&
-    player.boostUntil.toMillis() > Date.now()
+    typeof player.boostUntil.toMillis === 'function'
+      ? player.boostUntil.toMillis()
+      : 0
+  const boosted = boostEndMs > Date.now()
+  const boostRemainLabel = (() => {
+    if (!boosted) return ''
+    const totalMin = Math.ceil((boostEndMs - Date.now()) / 60_000)
+    const h = Math.floor(totalMin / 60)
+    const m = totalMin % 60
+    return h > 0 ? `${h}h${m > 0 ? ` ${m}min` : ''}` : `${m}min`
+  })()
 
   return (
     <article className="relative flex flex-col rounded-xl border border-border bg-card p-4 shadow-lg transition hover:border-primary/30">
@@ -77,7 +86,7 @@ export function PlayerCard({
       )}
       {boosted && (
         <span className="absolute -right-1 -top-1 rounded-bl-lg rounded-tr-lg bg-accent px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-black">
-          Destaque
+          ⚡ {boostRemainLabel}
         </span>
       )}
       <div className="flex items-start justify-between gap-2">

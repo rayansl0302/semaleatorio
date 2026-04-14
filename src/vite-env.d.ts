@@ -9,11 +9,8 @@ interface ImportMetaEnv {
   readonly VITE_RIOT_RSO_UI_LOCALES?: string
   readonly VITE_RIOT_RSO_TOKEN_URL?: string
   readonly VITE_RIOT_RSO_ACCOUNT_ME_URL?: string
-  /** Links de checkout Asaas produção (https://www.asaas.com/c/...) — obrigatórios no .env */
-  readonly VITE_ASAAS_LINK_PREMIUM_ESSENTIAL?: string
-  readonly VITE_ASAAS_LINK_PREMIUM_COMPLETE?: string
-  readonly VITE_ASAAS_LINK_BOOST_1H?: string
-  readonly VITE_ASAAS_LINK_BOOST_2H?: string
+  /** URL do backend (Railway) */
+  readonly VITE_BACKEND_URL?: string
 }
 
 interface ImportMeta {

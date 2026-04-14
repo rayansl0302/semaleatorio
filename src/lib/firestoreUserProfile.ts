@@ -107,6 +107,7 @@ export function normalizeUserFromFirestore(
     premiumUntil: asTimestamp(data.premiumUntil),
     asaasCustomerId:
       typeof data.asaasCustomerId === 'string' ? data.asaasCustomerId : undefined,
+    cpf: typeof data.cpf === 'string' ? data.cpf : undefined,
     fcmTokens,
   }
 }

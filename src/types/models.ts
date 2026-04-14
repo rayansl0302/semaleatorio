@@ -36,6 +36,7 @@ export interface UserProfile {
   reportsCount?: number
   /** Premium válido até (null = sem expiração / legado) */
   premiumUntil?: Timestamp | null
+  cpf?: string
   asaasCustomerId?: string
   fcmTokens?: string[]
 }

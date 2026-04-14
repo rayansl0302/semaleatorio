@@ -3,7 +3,6 @@ import {
   getDoc,
   onSnapshot,
   query,
-  Timestamp,
   where,
 } from 'firebase/firestore'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -25,19 +24,14 @@ import {
   playerTagLabel,
   roleLabel,
 } from '../lib/constants'
-import { extendBoostUntil } from '../lib/boost'
 import {
-  BOOST_1H_MS,
-  BOOST_2H_MS,
   formatBrlFromCents,
-  PREMIUM_SUBSCRIPTION_DAYS,
   PRICE_BOOST_1H_CENTS,
   PRICE_BOOST_2H_CENTS,
   PRICE_PREMIUM_COMPLETE_CENTS,
   PRICE_PREMIUM_ESSENTIAL_CENTS,
   PRODUCT_REF,
 } from '../lib/pricing'
-import { getAsaasPaymentLinkUrl } from '../lib/asaasPaymentLinks'
 import {
   hasPremiumCompleteFeatures,
   isPremiumActive,
@@ -56,6 +50,7 @@ import {
 import { getPublicSiteUrl } from '../lib/siteUrl'
 import { hasSemiAleatorioSeal } from '../lib/seal'
 import { formatLastSeenAgo, isRecentlyActive } from '../lib/timeAgoFirestore'
+import { createCheckout, isBackendConfigured } from '../lib/asaasPublic'
 import type { PlayerStatus, QueueType, UserProfile } from '../types/models'
 
 function eloTierForSelect(elo: string | undefined): (typeof ELO_ORDER)[number] {
@@ -109,6 +104,7 @@ export function ProfilePage() {
   const [editForm, setEditForm] = useState<ProfileEditForm | null>(null)
   const [editDirty, setEditDirty] = useState(false)
   const lastEditProfileUid = useRef<string | null>(null)
+  const [cpfInput, setCpfInput] = useState('')
 
   const isOwn = !viewUid || viewUid === user?.uid
   const display = isOwn ? profile : viewProfile
@@ -169,6 +165,10 @@ export function ProfilePage() {
     setRiotNick(profile.nickname ?? '')
     setRiotTag(profile.tag ?? '')
   }, [profile?.uid, profile?.nickname, profile?.tag])
+
+  useEffect(() => {
+    if (profile?.cpf) setCpfInput(profile.cpf)
+  }, [profile?.uid, profile?.cpf])
 
   /** RSO no browser está desativado: limpa query OAuth se existir. */
   useEffect(() => {
@@ -263,23 +263,65 @@ export function ProfilePage() {
     toast.info('Alterações descartadas.')
   }
 
-  function startCheckout(productRef: string) {
+  const [checkoutLoading, setCheckoutLoading] = useState(false)
+
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 60_000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  async function saveCpf() {
+    const raw = cpfInput.replace(/\D/g, '')
+    if (raw.length !== 11 && raw.length !== 14) {
+      toast.error('CPF (11 dígitos) ou CNPJ (14 dígitos) inválido.')
+      return
+    }
+    if (!user) return
+    await persistProfile(user.uid, { cpf: raw })
+    await refreshProfile()
+    toast.success('CPF salvo.')
+  }
+
+  async function startCheckout(productRef: string) {
     if (!user) {
       toast.error('Faça login para continuar.')
       return
     }
-    const url = getAsaasPaymentLinkUrl(productRef)
-    if (!url) {
+    if (!isBackendConfigured()) {
       toast.error('Pagamento deste plano ainda não está configurado.')
       return
     }
-    const a = document.createElement('a')
-    a.href = url
-    a.target = '_blank'
-    a.rel = 'noopener noreferrer'
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
+    const cpf = (profile?.cpf ?? cpfInput).replace(/\D/g, '')
+    if (cpf.length !== 11 && cpf.length !== 14) {
+      toast.error('Preencha seu CPF/CNPJ na seção abaixo antes de assinar.')
+      return
+    }
+
+    setCheckoutLoading(true)
+    try {
+      const token = await user.getIdToken()
+      const invoiceUrl = await createCheckout({
+        firebaseIdToken: token,
+        productRef,
+        cpf,
+      })
+
+      const a = document.createElement('a')
+      a.href = invoiceUrl
+      a.target = '_blank'
+      a.rel = 'noopener noreferrer'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+    } catch (e) {
+      console.error('[checkout]', e)
+      toast.error(
+        e instanceof Error ? e.message : 'Erro ao criar cobrança. Tente novamente.',
+      )
+    } finally {
+      setCheckoutLoading(false)
+    }
   }
 
   async function confirmRiotId() {
@@ -943,19 +985,60 @@ export function ProfilePage() {
               </li>
               <li>
                 Destaque na lista:{' '}
-                {profile?.boostUntil &&
-                typeof profile.boostUntil.toMillis === 'function' &&
-                profile.boostUntil.toMillis() > Date.now() ? (
-                  <span className="text-primary">
-                    ativo até{' '}
-                    {profile.boostUntil.toDate().toLocaleString('pt-BR')}
-                  </span>
-                ) : (
-                  <span className="text-slate-500">inativo</span>
-                )}
+                {(() => {
+                  if (
+                    !profile?.boostUntil ||
+                    typeof profile.boostUntil.toMillis !== 'function'
+                  )
+                    return <span className="text-slate-500">inativo</span>
+                  const endMs = profile.boostUntil.toMillis()
+                  const remainMs = endMs - now
+                  if (remainMs <= 0)
+                    return <span className="text-slate-500">inativo</span>
+                  const totalMin = Math.ceil(remainMs / 60_000)
+                  const h = Math.floor(totalMin / 60)
+                  const m = totalMin % 60
+                  const remainLabel =
+                    h > 0 ? `${h}h ${m}min` : `${m}min`
+                  return (
+                    <span className="text-primary">
+                      ativo · resta {remainLabel}{' '}
+                      <span className="text-slate-500">
+                        (até {profile.boostUntil.toDate().toLocaleString('pt-BR')})
+                      </span>
+                    </span>
+                  )
+                })()}
               </li>
             </ul>
           </div>
+
+          {!profile?.cpf && (
+            <div className="mt-6 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-4">
+              <p className="text-sm font-medium text-amber-200">
+                CPF ou CNPJ necessário para pagamento
+              </p>
+              <div className="mt-3 flex max-w-md flex-col gap-2 sm:flex-row sm:items-end">
+                <input
+                  value={cpfInput}
+                  onChange={(e) => setCpfInput(e.target.value)}
+                  placeholder="000.000.000-00"
+                  maxLength={18}
+                  className="min-w-0 flex-1 rounded-lg border border-border bg-bg px-3 py-2 text-sm text-white"
+                />
+                <button
+                  type="button"
+                  onClick={() => void saveCpf()}
+                  className="shrink-0 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-black hover:bg-amber-400"
+                >
+                  Salvar CPF
+                </button>
+              </div>
+              <p className="mt-2 text-[11px] text-slate-500">
+                Exigido pelo gateway de pagamento. Não é exibido publicamente.
+              </p>
+            </div>
+          )}
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <div className="flex flex-col rounded-xl border border-border bg-white/[0.03] p-5">
@@ -972,10 +1055,11 @@ export function ProfilePage() {
               </ul>
               <button
                 type="button"
-                onClick={() => startCheckout(PRODUCT_REF.premiumEssential)}
-                className="mt-4 w-full rounded-lg bg-primary py-2.5 text-sm font-bold text-black hover:bg-primary/90"
+                disabled={checkoutLoading}
+                onClick={() => void startCheckout(PRODUCT_REF.premiumEssential)}
+                className="mt-4 w-full rounded-lg bg-primary py-2.5 text-sm font-bold text-black hover:bg-primary/90 disabled:opacity-50"
               >
-                Assinar Essencial
+                {checkoutLoading ? 'Processando…' : 'Assinar Essencial'}
               </button>
             </div>
 
@@ -992,10 +1076,11 @@ export function ProfilePage() {
               </ul>
               <button
                 type="button"
-                onClick={() => startCheckout(PRODUCT_REF.premiumComplete)}
-                className="mt-4 w-full rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 py-2.5 text-sm font-bold text-black hover:opacity-95"
+                disabled={checkoutLoading}
+                onClick={() => void startCheckout(PRODUCT_REF.premiumComplete)}
+                className="mt-4 w-full rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 py-2.5 text-sm font-bold text-black hover:opacity-95 disabled:opacity-50"
               >
-                Assinar Pro
+                {checkoutLoading ? 'Processando…' : 'Assinar Pro'}
               </button>
             </div>
           </div>
@@ -1008,124 +1093,69 @@ export function ProfilePage() {
               Sobe a prioridade na ordenação dos jogadores (junto com outros em destaque). Pode
               acumular tempo se comprar de novo antes de expirar.
             </p>
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-              <div className="flex flex-1 flex-col rounded-xl border border-border bg-bg/50 p-4">
-                <span className="text-lg font-bold text-white">
-                  {formatBrlFromCents(PRICE_BOOST_1H_CENTS)}
-                </span>
-                <span className="text-xs text-slate-500">1 hora de destaque</span>
-                <button
-                  type="button"
-                  onClick={() => startCheckout(PRODUCT_REF.boost1h)}
-                  className="mt-3 rounded-lg border border-primary/50 bg-primary/10 py-2 text-xs font-semibold text-primary hover:bg-primary/20"
-                >
-                  Comprar 1 h
-                </button>
-              </div>
-              <div className="flex flex-1 flex-col rounded-xl border border-accent/40 bg-accent/5 p-4">
-                <span className="text-lg font-bold text-accent">
-                  {formatBrlFromCents(PRICE_BOOST_2H_CENTS)}
-                </span>
-                <span className="text-xs text-slate-500">2 horas de destaque</span>
-                <button
-                  type="button"
-                  onClick={() => startCheckout(PRODUCT_REF.boost2h)}
-                  className="mt-3 rounded-lg border border-accent/50 bg-accent/15 py-2 text-xs font-semibold text-amber-100 hover:bg-accent/25"
-                >
-                  Comprar 2 h
-                </button>
-              </div>
-            </div>
+            {(() => {
+              const boostActive =
+                profile?.boostUntil &&
+                typeof profile.boostUntil.toMillis === 'function' &&
+                profile.boostUntil.toMillis() > now
+              const remainMs = boostActive
+                ? profile.boostUntil!.toMillis() - now
+                : 0
+              const totalMin = Math.ceil(remainMs / 60_000)
+              const h = Math.floor(totalMin / 60)
+              const m = totalMin % 60
+              const remainLabel = h > 0 ? `${h}h ${m}min` : `${m}min`
+
+              return (
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                  {boostActive && (
+                    <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-primary/40 bg-primary/[0.08] p-5 text-center">
+                      <span className="relative mb-2 flex h-3 w-3">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+                        <span className="relative inline-flex h-3 w-3 rounded-full bg-primary" />
+                      </span>
+                      <span className="text-sm font-semibold text-primary">Destaque ativo</span>
+                      <span className="mt-1 text-lg font-bold text-white">
+                        {remainLabel}
+                      </span>
+                      <span className="mt-0.5 text-[11px] text-slate-500">
+                        expira {profile!.boostUntil!.toDate().toLocaleString('pt-BR')}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex flex-1 flex-col rounded-xl border border-border bg-bg/50 p-4">
+                    <span className="text-lg font-bold text-white">
+                      {formatBrlFromCents(PRICE_BOOST_1H_CENTS)}
+                    </span>
+                    <span className="text-xs text-slate-500">1 hora de destaque</span>
+                    <button
+                      type="button"
+                      disabled={checkoutLoading}
+                      onClick={() => void startCheckout(PRODUCT_REF.boost1h)}
+                      className="mt-3 rounded-lg border border-primary/50 bg-primary/10 py-2 text-xs font-semibold text-primary hover:bg-primary/20 disabled:opacity-50"
+                    >
+                      {checkoutLoading ? 'Processando…' : boostActive ? '+1 h' : 'Comprar 1 h'}
+                    </button>
+                  </div>
+                  <div className="flex flex-1 flex-col rounded-xl border border-accent/40 bg-accent/5 p-4">
+                    <span className="text-lg font-bold text-accent">
+                      {formatBrlFromCents(PRICE_BOOST_2H_CENTS)}
+                    </span>
+                    <span className="text-xs text-slate-500">2 horas de destaque</span>
+                    <button
+                      type="button"
+                      disabled={checkoutLoading}
+                      onClick={() => void startCheckout(PRODUCT_REF.boost2h)}
+                      className="mt-3 rounded-lg border border-accent/50 bg-accent/15 py-2 text-xs font-semibold text-amber-100 hover:bg-accent/25 disabled:opacity-50"
+                    >
+                      {checkoutLoading ? 'Processando…' : boostActive ? '+2 h' : 'Comprar 2 h'}
+                    </button>
+                  </div>
+                </div>
+              )
+            })()}
           </div>
 
-          <div className="mt-8 rounded-xl border border-dashed border-slate-600 bg-bg/30 p-4">
-            <p className="text-xs font-medium uppercase text-slate-500">Simulação (apenas dev)</p>
-            <p className="mt-1 text-xs text-slate-600">
-              Aplica alterações direto no Firestore para testar a UI. Em produção só o servidor (webhook de
-              pagamento) deve alterar plano, datas e destaque.
-            </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={async () => {
-                  if (!user) return
-                  await persistProfile(user.uid, {
-                    plan: 'premium',
-                    premiumVariant: 'essential',
-                    premiumUntil: Timestamp.fromMillis(
-                      Date.now() + PREMIUM_SUBSCRIPTION_DAYS * 86400000,
-                    ),
-                  })
-                  await refreshProfile()
-                  toast.success('Simulado: Premium Essencial 30 dias.')
-                }}
-                className="rounded-lg bg-white/10 px-3 py-1.5 text-xs text-slate-200 hover:bg-white/15"
-              >
-                Simular Essencial 30d
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  if (!user) return
-                  await persistProfile(user.uid, {
-                    plan: 'premium',
-                    premiumVariant: 'complete',
-                    premiumUntil: Timestamp.fromMillis(
-                      Date.now() + PREMIUM_SUBSCRIPTION_DAYS * 86400000,
-                    ),
-                  })
-                  await refreshProfile()
-                  toast.success('Simulado: Premium Pro 30 dias.')
-                }}
-                className="rounded-lg bg-white/10 px-3 py-1.5 text-xs text-slate-200 hover:bg-white/15"
-              >
-                Simular Pro 30d
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  if (!user || !profile) return
-                  const next = extendBoostUntil(profile.boostUntil, BOOST_1H_MS)
-                  await persistProfile(user.uid, { boostUntil: next })
-                  await refreshProfile()
-                  toast.success('Simulado: +1 h de destaque.')
-                }}
-                className="rounded-lg bg-white/10 px-3 py-1.5 text-xs text-slate-200 hover:bg-white/15"
-              >
-                Simular boost +1 h (R$ 3)
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  if (!user || !profile) return
-                  const next = extendBoostUntil(profile.boostUntil, BOOST_2H_MS)
-                  await persistProfile(user.uid, { boostUntil: next })
-                  await refreshProfile()
-                  toast.success('Simulado: +2 h de destaque.')
-                }}
-                className="rounded-lg bg-white/10 px-3 py-1.5 text-xs text-slate-200 hover:bg-white/15"
-              >
-                Simular boost +2 h (R$ 5)
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  if (!user) return
-                  await persistProfile(user.uid, {
-                    plan: 'free',
-                    premiumVariant: null,
-                    premiumUntil: null,
-                    boostUntil: null,
-                  })
-                  await refreshProfile()
-                  toast.success('Simulado: removido plano e destaque.')
-                }}
-                className="rounded-lg border border-red-500/40 px-3 py-1.5 text-xs text-red-300 hover:bg-red-500/10"
-              >
-                Limpar plano e boost
-              </button>
-            </div>
-          </div>
         </div>
       )}
 
