@@ -36,6 +36,10 @@ export const LOOKING_FOR_MATCH_FILTER_LABEL =
 export const LOOKING_FOR_MATCH_FILTER_HELP =
   'Mostra perfis que marcam que querem encontrar parceiro ou time para subir fila (duo, flex, Clash) neste momento.'
 
+/** Tooltip do bloco «Jogadores · presença» no feed (ordenação por atividade no app). */
+export const PRESENCE_SIDEBAR_TOOLTIP =
+  'Ordenados pela última vez que o app registrou atividade (não é status do cliente da Riot).'
+
 /** Nomes das ligas em PT-BR (valor armazenado continua em inglês). */
 export const ELO_TIER_LABELS: Record<string, string> = {
   IRON: 'Ferro',

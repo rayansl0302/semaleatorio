@@ -1,4 +1,4 @@
-import { collection, onSnapshot } from 'firebase/firestore'
+import { collection, doc, onSnapshot } from 'firebase/firestore'
 import { useEffect, useMemo, useState } from 'react'
 import { db } from '../firebase/config'
 import { eloRank } from '../lib/constants'
@@ -45,15 +45,41 @@ function sortPlayers(list: UserProfile[]): UserProfile[] {
   })
 }
 
+function staffHideSetFromDoc(data: Record<string, unknown> | undefined): Set<string> {
+  const out = new Set<string>()
+  const uids = data?.uids
+  if (!Array.isArray(uids)) return out
+  for (const x of uids) {
+    if (typeof x === 'string' && x.trim()) out.add(x.trim())
+  }
+  return out
+}
+
 export function usePlayers() {
-  const [basePlayers, setBasePlayers] = useState<UserProfile[]>([])
+  const [userRows, setUserRows] = useState<UserProfile[]>([])
+  const [staffHideUids, setStaffHideUids] = useState<Set<string>>(() => new Set())
   const [aggByUid, setAggByUid] = useState<Map<string, RatingAgg>>(new Map())
   const [error, setError] = useState<string | null>(null)
   const [ratingsTick, setRatingsTick] = useState(0)
 
   useEffect(() => {
     if (!db) {
-      setBasePlayers([])
+      setStaffHideUids(new Set())
+      return
+    }
+    const r = doc(db, 'config', 'staff_players_hide')
+    return onSnapshot(
+      r,
+      (snap) => {
+        setStaffHideUids(snap.exists() ? staffHideSetFromDoc(snap.data() as Record<string, unknown>) : new Set())
+      },
+      () => setStaffHideUids(new Set()),
+    )
+  }, [])
+
+  useEffect(() => {
+    if (!db) {
+      setUserRows([])
       return
     }
     const unsub = onSnapshot(
@@ -62,16 +88,22 @@ export function usePlayers() {
         const list: UserProfile[] = []
         snap.forEach((d) => {
           const p = normalizeUserFromFirestore(d.data(), d.id)
-          if (!p || p.shadowBanned || p.adminPanelOnly) return
+          if (!p || p.shadowBanned) return
           list.push(p)
         })
-        setBasePlayers(list)
+        setUserRows(list)
         setError(null)
       },
       (e) => setError(e.message),
     )
     return () => unsub()
   }, [])
+
+  const basePlayers = useMemo(
+    () =>
+      userRows.filter((p) => !p.adminPanelOnly && !staffHideUids.has(p.uid)),
+    [userRows, staffHideUids],
+  )
 
   useEffect(() => {
     if (!db) return

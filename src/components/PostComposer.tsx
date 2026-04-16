@@ -1,6 +1,8 @@
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore'
 import { useState } from 'react'
+import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
+import { feedPostTtlLabelForAuthor } from '../lib/feedPostVisibility'
 import { db } from '../firebase/config'
 import { Send } from '../lib/icons'
 import { LolEloIcon, LolRoleIcon } from './LolIcons'
@@ -20,6 +22,8 @@ type Props = {
 
 export function PostComposer({ uid, onCreated }: Props) {
   const toast = useToast()
+  const { profile } = useAuth()
+  const feedTtlLabel = feedPostTtlLabelForAuthor(profile ?? undefined)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [eloMin, setEloMin] = useState('GOLD')
@@ -65,6 +69,10 @@ export function PostComposer({ uid, onCreated }: Props) {
       <h3 className="text-sm font-semibold text-white">Novo pedido no feed</h3>
       <p className="mt-1 text-xs text-slate-500">
         Ex.: &quot;Procuro jungler Gold+ sem tilt pra duo agora&quot;
+      </p>
+      <p className="mt-2 text-xs text-slate-500">
+        Fica visível no feed por cerca de <span className="text-slate-400">{feedTtlLabel}</span>{' '}
+        após publicar (varia com o plano).
       </p>
       {err && <p className="mt-2 text-sm text-red-400">{err}</p>}
       <input

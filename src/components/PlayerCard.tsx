@@ -103,9 +103,12 @@ export function PlayerCard({
           ⚡ {boostRemainLabel}
         </span>
       )}
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h3 className="text-lg font-semibold text-white">
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <h3
+            title={`${player.nickname}#${player.tag}`}
+            className="cursor-help truncate text-lg font-semibold text-white"
+          >
             {player.nickname}
             <span className="font-normal text-muted">#{player.tag}</span>
           </h3>
@@ -133,7 +136,8 @@ export function PlayerCard({
           </div>
         </div>
         <span
-          className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${statusColors[player.status] ?? statusColors.OFFLINE}`}
+          title={STATUS_LABELS[player.status] ?? player.status}
+          className={`max-w-[min(100%,11rem)] shrink rounded-lg px-2.5 py-1 text-left text-xs font-medium leading-snug break-words sm:max-w-[13rem] ${statusColors[player.status] ?? statusColors.OFFLINE}`}
         >
           {STATUS_LABELS[player.status] ?? player.status}
         </span>

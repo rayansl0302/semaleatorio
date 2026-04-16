@@ -1,7 +1,15 @@
+export type AuthErrorContext = 'login' | 'register'
+
 /** Mensagens em PT para códigos comuns do Firebase Auth */
-export function authErrorMessage(code: string | undefined): string {
+export function authErrorMessage(
+  code: string | undefined,
+  context: AuthErrorContext = 'login',
+): string {
   switch (code) {
     case 'auth/email-already-in-use':
+      if (context === 'register') {
+        return 'Não foi possível criar a conta com estes dados. Verifique o e-mail ou faça login.'
+      }
       return 'Este e-mail já está cadastrado. Faça login ou use outro e-mail.'
     case 'auth/invalid-email':
       return 'E-mail inválido.'

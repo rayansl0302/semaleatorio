@@ -1,5 +1,5 @@
 import { getDoc, updateDoc } from 'firebase/firestore'
-import { useMemo, useState } from 'react'
+import { useDeferredValue, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { CallModal } from '../components/CallModal'
 import { PlayerCard } from '../components/PlayerCard'
@@ -34,6 +34,7 @@ export function PlayersPage() {
   const seeds = useSeedProfiles()
   const { players, error } = usePlayers()
   const [filters, setFilters] = useState<FilterState>(defaultFilter)
+  const deferredFilters = useDeferredValue(filters)
   const [advancedPreview, setAdvancedPreview] = useState(false)
   const [callTarget, setCallTarget] = useState<UserProfile | null>(null)
   const [reportTarget, setReportTarget] = useState<UserProfile | null>(null)
@@ -42,8 +43,8 @@ export function PlayersPage() {
   const eloMaxEnabled = isPremium || advancedPreview
 
   const visible = useMemo(
-    () => filterPlayers(players, filters, { eloMaxEnabled }),
-    [players, filters, eloMaxEnabled],
+    () => filterPlayers(players, deferredFilters, { eloMaxEnabled }),
+    [players, deferredFilters, eloMaxEnabled],
   )
 
   const othersReal = useMemo(
@@ -52,14 +53,14 @@ export function PlayersPage() {
   )
 
   const seedList = useMemo((): PlayerListItem[] => {
-    const f = filters
+    const f = deferredFilters
     return seeds.filter((s) => {
       if (f.statusLfgOnly && s.status !== 'LFG') return false
       if (f.role !== 'ANY' && !s.roles?.includes(f.role)) return false
       if (f.queueType && !s.queueTypes?.includes(f.queueType)) return false
       return true
     })
-  }, [seeds, filters])
+  }, [seeds, deferredFilters])
 
   const others: PlayerListItem[] = useMemo(() => {
     if (othersReal.length > 0) return othersReal.map((p) => ({ ...p }))

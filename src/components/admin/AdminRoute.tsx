@@ -1,4 +1,4 @@
-import { setDoc } from 'firebase/firestore'
+import { arrayUnion, doc, setDoc } from 'firebase/firestore'
 import { useEffect, useRef } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
@@ -15,10 +15,16 @@ export function AdminRoute({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!db || !user?.uid || !isAdmin || syncedPanelFlag.current) return
+    const fs = db
+    const uid = user.uid
     syncedPanelFlag.current = true
-    void setDoc(userProfileDoc(db, user.uid), { adminPanelOnly: true }, { merge: true }).catch(() => {
-      syncedPanelFlag.current = false
-    })
+    void setDoc(userProfileDoc(fs, uid), { adminPanelOnly: true }, { merge: true })
+      .then(() =>
+        setDoc(doc(fs, 'config', 'staff_players_hide'), { uids: arrayUnion(uid) }, { merge: true }),
+      )
+      .catch(() => {
+        syncedPanelFlag.current = false
+      })
   }, [user?.uid, isAdmin])
 
   if (loading) {

@@ -1,16 +1,10 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  /** RSO no browser (expõe segredo no bundle) — quando a Riot aprovar */
-  readonly VITE_RIOT_RSO_CLIENT_ID?: string
-  readonly VITE_RIOT_RSO_CLIENT_SECRET?: string
-  readonly VITE_RIOT_RSO_REDIRECT_URI?: string
-  readonly VITE_RIOT_RSO_SCOPES?: string
-  readonly VITE_RIOT_RSO_UI_LOCALES?: string
-  readonly VITE_RIOT_RSO_TOKEN_URL?: string
-  readonly VITE_RIOT_RSO_ACCOUNT_ME_URL?: string
-  /** URL do backend (Railway) */
+  /** URL do backend (checkout, Riot OAuth seguro, reCAPTCHA, etc.) */
   readonly VITE_BACKEND_URL?: string
+  /** Chave pública reCAPTCHA v2 (widget) — par com RECAPTCHA_SECRET_KEY no backend */
+  readonly VITE_RECAPTCHA_SITE_KEY?: string
 }
 
 interface ImportMeta {

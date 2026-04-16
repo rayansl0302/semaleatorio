@@ -172,7 +172,12 @@ service cloud.firestore {
 
     match /config/{doc} {
       allow read: if true;
-      allow write: if false;
+      /** UIDs de staff a ocultar em Jogadores/feed (actualizado por admins ao iniciar sessão). */
+      allow write: if doc == 'staff_players_hide'
+        && isAdmin()
+        && request.resource.data.keys().hasOnly(['uids'])
+        && request.resource.data.uids is list
+        && request.resource.data.uids.size() <= 500;
     }
 
     /** Registo inicial: só o email master pode criar o próprio documento. */

@@ -170,19 +170,30 @@ export function ProfilePage() {
     if (profile?.cpf) setCpfInput(profile.cpf)
   }, [profile?.uid, profile?.cpf])
 
-  /** RSO no browser está desativado: limpa query OAuth se existir. */
+  /** Login Riot (OAuth) desativado: remove parâmetros de retorno para não deixar URL suja. */
   useEffect(() => {
+    const linked = params.get('riot_linked')
+    const errRaw = params.get('riot_error')
     const code = params.get('code')
     const st = params.get('state')
-    if (!code || !st) return
-    const next = new URLSearchParams(params)
-    next.delete('code')
-    next.delete('state')
-    setParams(next, { replace: true })
-    setRiotMsg(
-      'Login Riot no navegador (SSO) está desativado. Use a confirmação manual abaixo.',
-    )
-  }, [params, setParams])
+    if (!isOwn) return
+    if (linked === '1' || errRaw || (code && st)) {
+      const next = new URLSearchParams(params)
+      next.delete('riot_linked')
+      next.delete('riot_error')
+      next.delete('code')
+      next.delete('state')
+      setParams(next, { replace: true })
+      void refreshProfile()
+      if (linked === '1') {
+        setRiotMsg('O vínculo automático com a Riot ainda não está disponível nesta versão. Use a confirmação manual abaixo.')
+      } else if (errRaw) {
+        setRiotMsg('Login com a Riot ainda não está disponível. Use a confirmação manual abaixo.')
+      } else if (code && st) {
+        setRiotMsg('Login com a Riot ainda não está disponível. Use a confirmação manual abaixo.')
+      }
+    }
+  }, [params, setParams, isOwn, refreshProfile])
 
   /** Volta do checkout Asaas: configura `callback.successUrl` no link (ex. `.../app/perfil?pagamento=sucesso`). */
   useEffect(() => {
@@ -249,7 +260,6 @@ export function ProfilePage() {
       setEditDirty(false)
       toast.success('Alterações salvas.')
     } catch (e) {
-      console.error('[Perfil] guardar rascunho:', e)
       toast.error(
         e instanceof Error ? e.message : 'Não foi possível salvar. Tente novamente.',
       )
@@ -663,13 +673,14 @@ export function ProfilePage() {
                 Em breve
               </p>
               <p className="mt-2 text-sm text-slate-400">
-                Login oficial com a Riot Games para vincular e validar seu invocador no app.
+                Login oficial com a Riot Games para vincular e validar seu invocador no app ainda não está
+                disponível.
               </p>
               <button
                 type="button"
                 disabled
                 className="mt-3 inline-flex cursor-not-allowed items-center justify-center rounded-lg bg-secondary/40 px-4 py-2.5 text-sm font-semibold text-slate-500 ring-1 ring-white/10"
-                title="Disponível em breve"
+                title="Ainda não disponível"
               >
                 Conectar conta Riot
               </button>

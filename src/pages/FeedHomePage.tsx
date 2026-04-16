@@ -10,8 +10,11 @@ import { firebaseFeedBlockedReason } from '../firebase/config'
 import { useAppConfig } from '../hooks/useAppConfig'
 import { useAdminPanelOnlyUids } from '../hooks/useAdminPanelOnlyUids'
 import { usePlayers } from '../hooks/usePlayers'
+import { useTickingNow } from '../hooks/useTickingNow'
 import { usePosts } from '../hooks/usePosts'
+import { isFeedPostStillVisible } from '../lib/feedPostVisibility'
 import { isPremiumActive, premiumVariantOf } from '../lib/plan'
+import { PRESENCE_SIDEBAR_TOOLTIP } from '../lib/constants'
 import { formatLastSeenAgo, isRecentlyActive } from '../lib/timeAgoFirestore'
 import type { UserProfile } from '../types/models'
 
@@ -22,21 +25,47 @@ export function FeedHomePage() {
   const { players } = usePlayers()
   const { posts, error: postsError } = usePosts()
   const staffUids = useAdminPanelOnlyUids()
+  const now = useTickingNow(60_000)
 
-  const postsVisible = useMemo(
+  const playerByUid = useMemo(() => {
+    const m = new Map<string, UserProfile>()
+    for (const p of players) {
+      m.set(p.uid, p)
+    }
+    return m
+  }, [players])
+
+  const postsAfterStaff = useMemo(
     () => posts.filter((post) => !staffUids.has(post.uid)),
     [posts, staffUids],
   )
 
+  const postsVisible = useMemo(
+    () =>
+      postsAfterStaff.filter((post) =>
+        isFeedPostStillVisible(post, playerByUid.get(post.uid), now),
+      ),
+    [postsAfterStaff, playerByUid, now],
+  )
+
   const lfgCount = useMemo(
-    () => players.filter((p) => p.status === 'LFG' && !p.shadowBanned).length,
-    [players],
+    () =>
+      players.filter(
+        (p) =>
+          !p.shadowBanned &&
+          !p.adminPanelOnly &&
+          !staffUids.has(p.uid) &&
+          p.status === 'LFG',
+      ).length,
+    [players, staffUids],
   )
 
   const pulse = Math.max(lfgCount, appConfig.onlineCountFloor)
 
   const presenceList = useMemo(() => {
-    const list = players.filter((p) => !p.shadowBanned) as UserProfile[]
+    const list = players.filter(
+      (p) => !p.shadowBanned && !p.adminPanelOnly && !staffUids.has(p.uid),
+    ) as UserProfile[]
 
     function tierOf(p: UserProfile): number {
       if (isPremiumActive(p)) {
@@ -59,7 +88,7 @@ export function FeedHomePage() {
       })
       .slice(0, 28)
       .map((x) => x.p)
-  }, [players])
+  }, [players, staffUids])
 
   if (firebaseFeedBlockedReason()) {
     return <FirebaseConfigNotice />
@@ -78,7 +107,10 @@ export function FeedHomePage() {
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 lg:flex-row lg:items-start lg:gap-10">
         <aside className="w-full shrink-0 lg:w-72 lg:pt-1">
           <div className="rounded-2xl border border-border bg-card/90 p-4 shadow-lg shadow-black/20 backdrop-blur-sm lg:sticky lg:top-24">
-            <h2 className="text-sm font-bold tracking-tight text-white">
+            <h2
+              className="cursor-help text-sm font-bold tracking-tight text-white"
+              title={PRESENCE_SIDEBAR_TOOLTIP}
+            >
               Jogadores · presença
             </h2>
             <p className="mt-1 text-[11px] leading-snug text-slate-500">
@@ -145,7 +177,10 @@ export function FeedHomePage() {
                         <div className="relative min-w-0 flex-1">
                           <div className="flex items-center gap-1.5">
                             <LolEloIcon elo={p.elo} className="h-4 w-4 shrink-0" />
-                            <span className={`truncate text-xs font-semibold ${isPro ? 'text-amber-200' : isEssential ? 'text-cyan-100' : 'text-white'}`}>
+                            <span
+                              title={`${p.nickname}#${p.tag}`}
+                              className={`cursor-help truncate text-xs font-semibold ${isPro ? 'text-amber-200' : isEssential ? 'text-cyan-100' : 'text-white'}`}
+                            >
                               {p.nickname}
                               <span className={isPro ? 'text-amber-500/60' : isEssential ? 'text-cyan-400/40' : 'text-slate-500'}>#{p.tag}</span>
                             </span>
@@ -286,11 +321,24 @@ export function FeedHomePage() {
             </div>
             {postsVisible.length === 0 && (
               <p className="rounded-xl border border-dashed border-border py-10 text-center text-sm text-slate-500">
-                Nenhum post ainda. Seja o primeiro a pedir duo ou flex — ou abra{' '}
-                <Link to="/app/jogadores" className="text-primary hover:underline">
-                  jogadores
-                </Link>{' '}
-                para ver quem está procurando time ou dupla.
+                {postsAfterStaff.length > 0 ? (
+                  <>
+                    Nenhum pedido ativo no feed agora (eles somem após o tempo do plano de quem
+                    publicou). Publique de novo ou abra{' '}
+                    <Link to="/app/jogadores" className="text-primary hover:underline">
+                      jogadores
+                    </Link>
+                    .
+                  </>
+                ) : (
+                  <>
+                    Nenhum post ainda. Seja o primeiro a pedir duo ou flex — ou abra{' '}
+                    <Link to="/app/jogadores" className="text-primary hover:underline">
+                      jogadores
+                    </Link>{' '}
+                    para ver quem está procurando time ou dupla.
+                  </>
+                )}
               </p>
             )}
           </section>

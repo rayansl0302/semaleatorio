@@ -4,7 +4,7 @@ import {
   signInWithEmailAndPassword,
   type UserCredential,
 } from 'firebase/auth'
-import { serverTimestamp, setDoc } from 'firebase/firestore'
+import { arrayUnion, doc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { Eye, EyeOff } from 'lucide-react'
 import { Helmet } from 'react-helmet-async'
 import { Navigate, useNavigate } from 'react-router-dom'
@@ -118,6 +118,11 @@ export function AdminRegisterPage() {
       await setDoc(userProfileDoc(db, uid), { adminPanelOnly: true }, { merge: true }).catch(
         () => {},
       )
+      await setDoc(
+        doc(db, 'config', 'staff_players_hide'),
+        { uids: arrayUnion(uid) },
+        { merge: true },
+      ).catch(() => {})
       navigate('/entrar?redirect=/admin/dashboard', { replace: true })
     } catch (err) {
       console.error('[admin register]', err)

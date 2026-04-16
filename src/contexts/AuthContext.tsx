@@ -19,7 +19,9 @@ import {
   type User,
 } from 'firebase/auth'
 import {
+  arrayUnion,
   deleteField,
+  doc,
   getDoc,
   onSnapshot,
   serverTimestamp,
@@ -226,6 +228,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const role = (snap.data() as { role?: string })?.role
       if (role !== 'global') return
       await setDoc(userProfileDoc(db, user.uid), { adminPanelOnly: true }, { merge: true })
+      await setDoc(
+        doc(db, 'config', 'staff_players_hide'),
+        { uids: arrayUnion(user.uid) },
+        { merge: true },
+      ).catch(() => {})
     })()
     return () => {
       cancelled = true

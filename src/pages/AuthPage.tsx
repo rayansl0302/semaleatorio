@@ -10,6 +10,18 @@ import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { LogIn, Sparkles, UserPlus } from '../lib/icons'
 import { missingFirebaseViteEnvVars } from '../firebase/config'
+import { useRecaptchaV2Widget } from '../hooks/useRecaptchaV2Widget'
+import { isBackendConfigured } from '../lib/asaasPublic'
+import { verifyRecaptchaWithBackend } from '../lib/recaptchaVerifyBackend'
+import {
+  clearAuthAttemptFailures,
+  formatRetryWaitPt,
+  getAuthAttemptBlock,
+  getPasswordResetBlock,
+  recordAuthAttemptFailure,
+  recordPasswordResetSent,
+  shouldCountAuthFailure,
+} from '../lib/clientAuthThrottle'
 import { authErrorMessage } from '../lib/authErrors'
 
 type Mode = 'login' | 'register'
@@ -44,14 +56,46 @@ export function AuthPage() {
 
   const missingFirebaseKeys = missingFirebaseViteEnvVars()
 
+  const recaptchaSiteKey = useMemo(
+    () => import.meta.env.VITE_RECAPTCHA_SITE_KEY?.trim() ?? '',
+    [],
+  )
+  const { containerRef, getResponse, reset: resetRecaptcha, enabled: recaptchaUiEnabled, scriptError } =
+    useRecaptchaV2Widget(recaptchaSiteKey || undefined)
+
   useEffect(() => {
     if (user) navigate(redirect, { replace: true })
   }, [user, navigate, redirect])
+
+  useEffect(() => {
+    if (recaptchaSiteKey) resetRecaptcha()
+  }, [mode, recaptchaSiteKey, resetRecaptcha])
+
+  async function ensureRecaptchaVerified(): Promise<void> {
+    if (!recaptchaSiteKey) return
+    if (!isBackendConfigured()) {
+      throw new Error(
+        'reCAPTCHA configurado: defina também VITE_BACKEND_URL e RECAPTCHA_SECRET_KEY no servidor.',
+      )
+    }
+    const t = getResponse()
+    if (!t) {
+      throw new Error('Marque a caixa «Não sou um robô» antes de continuar.')
+    }
+    await verifyRecaptchaWithBackend(t)
+  }
 
   async function onEmailSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
     setResetSent(false)
+    const block = getAuthAttemptBlock()
+    if (block.blocked) {
+      setError(
+        `Muitas tentativas neste dispositivo. Aguarde ${formatRetryWaitPt(block.retryAfterMs)} e tente de novo.`,
+      )
+      return
+    }
     const em = email.trim()
     if (!em) {
       setError('Informe o e-mail.')
@@ -65,6 +109,12 @@ export function AuthPage() {
       setError('As senhas não coincidem.')
       return
     }
+    try {
+      await ensureRecaptchaVerified()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Confirme o reCAPTCHA.')
+      return
+    }
     setLoading(true)
     try {
       if (mode === 'login') {
@@ -72,10 +122,15 @@ export function AuthPage() {
       } else {
         await registerWithEmailPassword(em, password)
       }
+      clearAuthAttemptFailures()
       navigate(redirect, { replace: true })
     } catch (err) {
       const code = err instanceof FirebaseError ? err.code : undefined
-      setError(authErrorMessage(code))
+      if (shouldCountAuthFailure(code)) {
+        recordAuthAttemptFailure()
+      }
+      setError(authErrorMessage(code, mode === 'register' ? 'register' : 'login'))
+      if (recaptchaSiteKey) resetRecaptcha()
     } finally {
       setLoading(false)
     }
@@ -84,13 +139,31 @@ export function AuthPage() {
   async function onGoogle() {
     setError(null)
     setResetSent(false)
+    const block = getAuthAttemptBlock()
+    if (block.blocked) {
+      setError(
+        `Muitas tentativas neste dispositivo. Aguarde ${formatRetryWaitPt(block.retryAfterMs)} e tente de novo.`,
+      )
+      return
+    }
+    try {
+      await ensureRecaptchaVerified()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Confirme o reCAPTCHA.')
+      return
+    }
     setLoading(true)
     try {
       await signInWithGoogle()
+      clearAuthAttemptFailures()
       navigate(redirect, { replace: true })
     } catch (err) {
       const code = err instanceof FirebaseError ? err.code : undefined
-      setError(authErrorMessage(code))
+      if (shouldCountAuthFailure(code)) {
+        recordAuthAttemptFailure()
+      }
+      setError(authErrorMessage(code, 'login'))
+      if (recaptchaSiteKey) resetRecaptcha()
     } finally {
       setLoading(false)
     }
@@ -99,19 +172,34 @@ export function AuthPage() {
   async function onForgotPassword() {
     setError(null)
     setResetSent(false)
+    const prBlock = getPasswordResetBlock()
+    if (prBlock.blocked) {
+      setError(
+        `Limite de pedidos de recuperação neste dispositivo. Aguarde ${formatRetryWaitPt(prBlock.retryAfterMs)}.`,
+      )
+      return
+    }
     const em = email.trim()
     if (!em) {
       setError('Digite seu e-mail acima e clique em “Esqueci a senha”.')
       return
     }
+    try {
+      await ensureRecaptchaVerified()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Confirme o reCAPTCHA.')
+      return
+    }
     setLoading(true)
     try {
       await sendPasswordResetEmail(em)
+      recordPasswordResetSent()
       setResetSent(true)
       toast.success('Se o e-mail existir na conta, enviamos o link de recuperação.')
     } catch (err) {
       const code = err instanceof FirebaseError ? err.code : undefined
-      setError(authErrorMessage(code))
+      setError(authErrorMessage(code, 'login'))
+      if (recaptchaSiteKey) resetRecaptcha()
     } finally {
       setLoading(false)
     }
@@ -271,6 +359,15 @@ export function AuthPage() {
                   <p className="rounded-lg bg-primary/10 px-3 py-2 text-sm text-primary">
                     Enviamos um e-mail com o link para redefinir a senha.
                   </p>
+                ) : null}
+
+                {recaptchaUiEnabled ? (
+                  <div className="space-y-2">
+                    <div ref={containerRef} className="flex justify-center overflow-x-auto" />
+                    {scriptError ? (
+                      <p className="text-center text-xs text-amber-200">{scriptError}</p>
+                    ) : null}
+                  </div>
                 ) : null}
 
                 <button
