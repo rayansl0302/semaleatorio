@@ -14,14 +14,23 @@ export async function createCheckout(params: {
   firebaseIdToken: string
   productRef: string
   cpf: string
+  referralSlug?: string
 }): Promise<string> {
+  const body: Record<string, string> = {
+    productRef: params.productRef,
+    cpf: params.cpf,
+  }
+  if (params.referralSlug?.trim()) {
+    body.referralSlug = params.referralSlug.trim().toLowerCase()
+  }
+
   const res = await fetch(`${getBackendBaseUrl()}/api/checkout`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.firebaseIdToken}`,
     },
-    body: JSON.stringify({ productRef: params.productRef, cpf: params.cpf }),
+    body: JSON.stringify(body),
   })
 
   if (!res.ok) {

@@ -50,7 +50,10 @@ import {
 import { getPublicSiteUrl } from '../lib/siteUrl'
 import { hasSemiAleatorioSeal } from '../lib/seal'
 import { formatLastSeenAgo, isRecentlyActive } from '../lib/timeAgoFirestore'
+import { ReferralInviteSection } from '../components/ReferralInviteSection'
+import { ReferralPixKeyForm } from '../components/ReferralPixKeyForm'
 import { createCheckout, isBackendConfigured } from '../lib/asaasPublic'
+import { readPendingReferralSlug } from '../lib/referralSession'
 import type { PlayerStatus, QueueType, UserProfile } from '../types/models'
 
 function eloTierForSelect(elo: string | undefined): (typeof ELO_ORDER)[number] {
@@ -235,7 +238,11 @@ export function ProfilePage() {
       setCopiedKey(key)
       window.setTimeout(() => setCopiedKey(''), 2200)
       toast.success(
-        key === 'link' ? 'Link do perfil copiado.' : 'Copiado para a área de transferência.',
+        key === 'link' || key === 'invite'
+          ? key === 'link'
+            ? 'Link do perfil copiado.'
+            : 'Link de indicação copiado.'
+          : 'Copiado para a área de transferência.',
       )
     } catch {
       window.prompt('Copie:', value)
@@ -311,10 +318,17 @@ export function ProfilePage() {
     setCheckoutLoading(true)
     try {
       const token = await user.getIdToken()
+      const referralSlug =
+        (productRef === PRODUCT_REF.premiumEssential ||
+          productRef === PRODUCT_REF.premiumComplete) &&
+        !profile?.referredByUid
+          ? readPendingReferralSlug()
+          : undefined
       const invoiceUrl = await createCheckout({
         firebaseIdToken: token,
         productRef,
         cpf,
+        referralSlug,
       })
 
       const a = document.createElement('a')
@@ -970,6 +984,29 @@ export function ProfilePage() {
       {isOwn && (
         <div className="rounded-2xl border border-border bg-card p-6 sm:p-8">
           <h2 className="text-lg font-semibold text-white">Planos e destaque</h2>
+
+          {profile?.profileSlug ? (
+            <>
+              <ReferralInviteSection
+                profileSlug={profile.profileSlug}
+                siteBaseUrl={getPublicSiteUrl()}
+                referredByUid={profile.referredByUid}
+                paidReferralCount={profile.referralPaidCount ?? 0}
+                copiedKey={copiedKey}
+                onCopy={copyToClipboard}
+              />
+              <ReferralPixKeyForm
+                initialPixKey={profile.pixKey ?? ''}
+                disabled={checkoutLoading}
+                onSave={async (trimmed) => {
+                  if (!user) return
+                  await persistProfile(user.uid, { pixKey: trimmed || undefined })
+                  await refreshProfile()
+                  toast.success('Chave PIX guardada.')
+                }}
+              />
+            </>
+          ) : null}
 
           <div className="mt-4 rounded-xl border border-border/80 bg-bg/40 p-4 text-sm text-slate-400">
             <p className="font-medium text-slate-200">Estado atual</p>

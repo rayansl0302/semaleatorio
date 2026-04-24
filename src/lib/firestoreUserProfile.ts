@@ -112,6 +112,11 @@ export function normalizeUserFromFirestore(
     playingNow: Boolean(data.playingNow),
     createdAt: asTimestamp(data.createdAt),
     profileSlug: slug,
+    referredByUid:
+      typeof data.referredByUid === 'string' && data.referredByUid.trim() !== ''
+        ? data.referredByUid.trim()
+        : undefined,
+    referredAt: asTimestamp(data.referredAt),
     region: typeof data.region === 'string' ? data.region : undefined,
     shadowBanned: Boolean(data.shadowBanned),
     reportsCount: typeof data.reportsCount === 'number' ? data.reportsCount : undefined,
@@ -119,6 +124,14 @@ export function normalizeUserFromFirestore(
     asaasCustomerId:
       typeof data.asaasCustomerId === 'string' ? data.asaasCustomerId : undefined,
     cpf: typeof data.cpf === 'string' ? data.cpf : undefined,
+    pixKey:
+      typeof data.pixKey === 'string' && data.pixKey.trim() !== ''
+        ? data.pixKey.trim().slice(0, 120)
+        : undefined,
+    referralPaidCount:
+      typeof data.referralPaidCount === 'number' && Number.isFinite(data.referralPaidCount)
+        ? Math.max(0, Math.floor(data.referralPaidCount))
+        : undefined,
     fcmTokens,
     adminPanelOnly: Boolean(data.adminPanelOnly),
   }

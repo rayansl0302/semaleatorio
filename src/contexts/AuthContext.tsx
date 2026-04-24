@@ -76,6 +76,10 @@ function toFirestoreUpdate(patch: Partial<UserProfile>): Record<string, unknown>
       out[k] = deleteField()
       continue
     }
+    if (k === 'pixKey' && (v === '' || v === null)) {
+      out[k] = deleteField()
+      continue
+    }
     if (
       k === 'lastOnline' ||
       k === 'createdAt' ||

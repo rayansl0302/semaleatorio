@@ -1,6 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
-import { LayoutDashboard, LogOut, Users, Wallet } from 'lucide-react'
+import { Gift, LayoutDashboard, LogOut, Users, Wallet } from 'lucide-react'
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
   `flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
@@ -31,6 +31,10 @@ export function AdminLayout() {
           <NavLink to="/admin/payments" className={navClass}>
             <Wallet className="h-4 w-4 shrink-0" />
             Pagamentos
+          </NavLink>
+          <NavLink to="/admin/referral" className={navClass}>
+            <Gift className="h-4 w-4 shrink-0" />
+            Indicações
           </NavLink>
         </nav>
         <div className="border-t border-border p-2">

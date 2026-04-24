@@ -1,5 +1,7 @@
+import { useEffect } from 'react'
 import { HelmetProvider } from 'react-helmet-async'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { SA_REFERRAL_SLUG_SESSION_KEY } from './lib/referralSession'
 import { Layout } from './components/Layout'
 import { AuthPage } from './pages/AuthPage'
 import { FeedHomePage } from './pages/FeedHomePage'
@@ -18,11 +20,24 @@ import { AdminRegisterPage } from './pages/admin/AdminRegisterPage'
 import { AdminDashboardPage } from './pages/admin/AdminDashboardPage'
 import { AdminUsersPage } from './pages/admin/AdminUsersPage'
 import { AdminPaymentsPage } from './pages/admin/AdminPaymentsPage'
+import { AdminReferralPage } from './pages/admin/AdminReferralPage'
+
+function ReferralQueryCapture() {
+  const location = useLocation()
+  useEffect(() => {
+    const q = new URLSearchParams(location.search)
+    const r = q.get('ref')?.trim()
+    if (!r) return
+    sessionStorage.setItem(SA_REFERRAL_SLUG_SESSION_KEY, r.toLowerCase())
+  }, [location.search])
+  return null
+}
 
 export default function App() {
   return (
     <HelmetProvider>
       <BrowserRouter>
+        <ReferralQueryCapture />
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/entrar" element={<AuthPage />} />
@@ -39,6 +54,7 @@ export default function App() {
             <Route path="dashboard" element={<AdminDashboardPage />} />
             <Route path="users" element={<AdminUsersPage />} />
             <Route path="payments" element={<AdminPaymentsPage />} />
+            <Route path="referral" element={<AdminReferralPage />} />
           </Route>
           <Route path="/privacidade" element={<LegalPrivacyPage />} />
           <Route path="/termos" element={<LegalTermsPage />} />

@@ -31,12 +31,19 @@ export interface UserProfile {
   createdAt?: Timestamp | null
   /** URL pública /u/:profileSlug */
   profileSlug?: string
+  /** Definido pelo backend (indicação); não editável no cliente. */
+  referredByUid?: string
+  referredAt?: Timestamp | null
   region?: string
   shadowBanned?: boolean
   reportsCount?: number
   /** Premium válido até (null = sem expiração / legado) */
   premiumUntil?: Timestamp | null
   cpf?: string
+  /** Chave PIX para receber comissões de indicação (cadastro pelo utilizador). */
+  pixKey?: string
+  /** Indicações premium pagas já contabilizadas para o indicador (só servidor). */
+  referralPaidCount?: number
   asaasCustomerId?: string
   fcmTokens?: string[]
   /**

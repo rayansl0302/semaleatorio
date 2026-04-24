@@ -31,7 +31,58 @@ service cloud.firestore {
           'reportsCount',
           'premiumUntil',
           'asaasCustomerId',
+          'referredByUid',
+          'referredAt',
+          'referralPaidCount',
         ]);
+    }
+
+    function referralConfigWriteValid() {
+      return request.resource.data.keys().hasOnly([
+          'enabled',
+          'percentTier1',
+          'percentTier2',
+          'percentTier3',
+          'tier2MinNth',
+          'tier3MinNth',
+          'maxRewardsPerReferrerPerMonth',
+        ])
+        && request.resource.data.enabled is bool
+        && request.resource.data.percentTier1 is int
+        && request.resource.data.percentTier1 >= 0
+        && request.resource.data.percentTier1 <= 100
+        && request.resource.data.percentTier2 is int
+        && request.resource.data.percentTier2 >= 0
+        && request.resource.data.percentTier2 <= 100
+        && request.resource.data.percentTier3 is int
+        && request.resource.data.percentTier3 >= 0
+        && request.resource.data.percentTier3 <= 100
+        && request.resource.data.tier2MinNth is int
+        && request.resource.data.tier2MinNth >= 2
+        && request.resource.data.tier2MinNth <= 500
+        && request.resource.data.tier3MinNth is int
+        && request.resource.data.tier3MinNth >= 3
+        && request.resource.data.tier3MinNth <= 10000
+        && request.resource.data.tier3MinNth > request.resource.data.tier2MinNth
+        && request.resource.data.maxRewardsPerReferrerPerMonth is int
+        && request.resource.data.maxRewardsPerReferrerPerMonth >= 0
+        && request.resource.data.maxRewardsPerReferrerPerMonth <= 500;
+    }
+
+    function userPixKeyChangedOk() {
+      let ch = request.resource.data.diff(resource.data).changedKeys();
+      return !ch.hasAny(['pixKey'])
+        || !request.resource.data.keys().hasAny(['pixKey'])
+        || (request.resource.data.pixKey is string && request.resource.data.pixKey.size() <= 120);
+    }
+
+    function referralRewardPayoutUpdateValid() {
+      let ch = request.resource.data.diff(resource.data).changedKeys();
+      return ch.hasOnly(['payoutStatus', 'paidNote'])
+        && request.resource.data.payoutStatus is string
+        && request.resource.data.payoutStatus in ['pending', 'paid', 'cancelled']
+        && (!ch.hasAny(['paidNote'])
+            || (request.resource.data.paidNote is string && request.resource.data.paidNote.size() <= 500));
     }
 
     /** Só pode ficar true se existir `admins/{uid}` (evita esconder perfil sem ser staff). */
@@ -49,12 +100,17 @@ service cloud.firestore {
         && !request.resource.data.keys().hasAny([
           'premiumUntil',
           'asaasCustomerId',
+          'referredByUid',
+          'referredAt',
+          'pixKey',
+          'referralPaidCount',
         ])
         && request.resource.data.adminPanelOnly != true;
 
       allow update: if isOwner(userId)
         && !touchesServerOnlyUserFields()
-        && adminPanelOnlyWriteValid(userId);
+        && adminPanelOnlyWriteValid(userId)
+        && userPixKeyChangedOk();
 
       allow delete: if isOwner(userId);
     }
@@ -178,6 +234,13 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['uids'])
         && request.resource.data.uids is list
         && request.resource.data.uids.size() <= 500;
+      allow write: if doc == 'referral' && isAdmin() && referralConfigWriteValid();
+    }
+
+    match /referral_rewards/{id} {
+      allow read: if isAdmin();
+      allow create, delete: if false;
+      allow update: if isAdmin() && referralRewardPayoutUpdateValid();
     }
 
     /** Registo inicial: só o email master pode criar o próprio documento. */

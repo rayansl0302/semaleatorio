@@ -49,6 +49,11 @@
         { "fieldPath": "uid", "order": "ASCENDING" },
         { "fieldPath": "processedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "referral_rewards",
+      "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "createdAt", "order": "DESCENDING" }]
     }
   ],
   "fieldOverrides": []

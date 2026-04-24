@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useEffect, useRef } from 'react'
 import {
   Link,
   NavLink,
@@ -16,7 +17,14 @@ import { useAuth } from '../contexts/AuthContext'
 import { db } from '../firebase/config'
 import { useToast } from '../contexts/ToastContext'
 import { useFcmRegistration } from '../hooks/useFcmRegistration'
+import { isBackendConfigured } from '../lib/asaasPublic'
 import { Home, LogOut, MessageCircle, User, Users } from '../lib/icons'
+import { claimReferralSlug } from '../lib/referralPublic'
+import {
+  clearPendingReferralSlug,
+  readPendingReferralSlug,
+  SA_REFERRAL_SLUG_SESSION_KEY,
+} from '../lib/referralSession'
 
 const navCls = ({ isActive }: { isActive: boolean }) =>
   `rounded-lg px-3 py-2 text-sm font-medium ${
@@ -52,9 +60,49 @@ function MessagesNavLink() {
 function LayoutInner() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { user, profile, loading, firebaseConfigured, logout } = useAuth()
+  const { user, profile, loading, firebaseConfigured, logout, refreshProfile } = useAuth()
   const toast = useToast()
   useFcmRegistration(user, profile)
+  const referralHandledRef = useRef(false)
+
+  useEffect(() => {
+    const q = new URLSearchParams(location.search)
+    const r = q.get('ref')?.trim()
+    if (r) {
+      sessionStorage.setItem(SA_REFERRAL_SLUG_SESSION_KEY, r.toLowerCase())
+    }
+  }, [location.search])
+
+  useEffect(() => {
+    if (!user || !profile || referralHandledRef.current) return
+    const slug = readPendingReferralSlug()
+    if (profile.referredByUid) {
+      referralHandledRef.current = true
+      if (slug) clearPendingReferralSlug()
+      return
+    }
+    if (!slug) {
+      referralHandledRef.current = true
+      return
+    }
+    if (!isBackendConfigured()) return
+    referralHandledRef.current = true
+    void (async () => {
+      try {
+        const token = await user.getIdToken()
+        const { attached } = await claimReferralSlug({ firebaseIdToken: token, slug })
+        if (attached) {
+          clearPendingReferralSlug()
+          toast.success('Indicação registada. Quando assinares Premium Essencial ou Pro, o teu indicador recebe os dias extra.')
+          await refreshProfile()
+        } else {
+          clearPendingReferralSlug()
+        }
+      } catch {
+        referralHandledRef.current = false
+      }
+    })()
+  }, [user, profile, refreshProfile, toast])
 
   const entrarHref = `/entrar?redirect=${encodeURIComponent(
     `${location.pathname}${location.search}` || '/app',
