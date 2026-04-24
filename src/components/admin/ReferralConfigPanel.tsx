@@ -1,5 +1,5 @@
 import { doc, onSnapshot, setDoc } from 'firebase/firestore'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Gift } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { db } from '../../firebase/config'
@@ -124,6 +124,18 @@ export function ReferralConfigPanel() {
     }
   }, [db, user, form, toast])
 
+  const previewLines = useMemo(() => {
+    const t2 = Math.max(2, form.tier2MinNth)
+    const t3 = Math.max(t2 + 1, form.tier3MinNth)
+    const lastLow = t2 - 1
+    const lastMid = t3 - 1
+    return {
+      line1: `Indicações pagas n.º 1 até ${lastLow} → ${form.percentTier1}% do valor do pagamento`,
+      line2: `Indicações pagas n.º ${t2} até ${lastMid} → ${form.percentTier2}%`,
+      line3: `Indicações pagas n.º ${t3} em diante → ${form.percentTier3}%`,
+    }
+  }, [form])
+
   return (
     <section className="rounded-2xl border border-border bg-card p-6">
       <div className="flex items-start gap-3">
@@ -133,14 +145,15 @@ export function ReferralConfigPanel() {
         <div className="min-w-0 flex-1">
           <h2 className="text-lg font-semibold text-white">Programa “Indique e ganhe”</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Percentual sobre o valor pago (Premium Essencial ou Pro). O webhook grava a comissão e
-            a chave PIX copiada do indicador no momento do pagamento.
+            Cada vez que um indicado paga <strong className="font-medium text-slate-400">Premium</strong>, o
+            indicador ganha uma comissão em % sobre esse valor. O número da indicação (1.ª, 2.ª, …)
+            é contado só com pagamentos já confirmados.
           </p>
         </div>
       </div>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        <label className="flex cursor-pointer items-center gap-3 text-sm text-slate-300 sm:col-span-2">
+      <div className="mx-auto mt-6 max-w-2xl space-y-8">
+        <label className="flex cursor-pointer items-center gap-3 text-sm text-slate-300">
           <input
             type="checkbox"
             checked={form.enabled}
@@ -148,102 +161,153 @@ export function ReferralConfigPanel() {
               setDirty(true)
               setForm((f) => ({ ...f, enabled: e.target.checked }))
             }}
-            className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+            className="h-4 w-4 shrink-0 rounded border-border text-primary focus:ring-primary"
           />
-          Programa activo
+          <span>Programa activo (se desligar, ninguém recebe comissão nova)</span>
         </label>
 
-        <label className="block text-sm">
-          <span className="text-slate-400">% 1.ª faixa (ex.: indicações 1–19)</span>
-          <input
-            type="number"
-            min={0}
-            max={100}
-            value={form.percentTier1}
-            onChange={(e) => {
-              setDirty(true)
-              setForm((f) => ({ ...f, percentTier1: Number(e.target.value) }))
-            }}
-            className="mt-1 w-full rounded-lg border border-border bg-bg px-3 py-2 text-white"
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="text-slate-400">% 2.ª faixa</span>
-          <input
-            type="number"
-            min={0}
-            max={100}
-            value={form.percentTier2}
-            onChange={(e) => {
-              setDirty(true)
-              setForm((f) => ({ ...f, percentTier2: Number(e.target.value) }))
-            }}
-            className="mt-1 w-full rounded-lg border border-border bg-bg px-3 py-2 text-white"
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="text-slate-400">% 3.ª faixa</span>
-          <input
-            type="number"
-            min={0}
-            max={100}
-            value={form.percentTier3}
-            onChange={(e) => {
-              setDirty(true)
-              setForm((f) => ({ ...f, percentTier3: Number(e.target.value) }))
-            }}
-            className="mt-1 w-full rounded-lg border border-border bg-bg px-3 py-2 text-white"
-          />
-        </label>
+        <div
+          className="rounded-xl border border-dashed border-primary/35 bg-primary/[0.06] p-4"
+          aria-live="polite"
+        >
+          <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+            Resumo com os valores actuais
+          </p>
+          <ul className="mt-3 space-y-2 text-sm leading-relaxed text-slate-300">
+            <li>{previewLines.line1}</li>
+            <li>{previewLines.line2}</li>
+            <li>{previewLines.line3}</li>
+          </ul>
+        </div>
 
-        <label className="block text-sm">
-          <span className="text-slate-400">A partir da N-ésima indicação paga: 2.ª %</span>
-          <input
-            type="number"
-            min={2}
-            max={500}
-            value={form.tier2MinNth}
-            onChange={(e) => {
-              setDirty(true)
-              setForm((f) => ({ ...f, tier2MinNth: Number(e.target.value) }))
-            }}
-            className="mt-1 w-full rounded-lg border border-border bg-bg px-3 py-2 text-white"
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="text-slate-400">A partir da N-ésima: 3.ª %</span>
-          <input
-            type="number"
-            min={3}
-            max={10000}
-            value={form.tier3MinNth}
-            onChange={(e) => {
-              setDirty(true)
-              setForm((f) => ({ ...f, tier3MinNth: Number(e.target.value) }))
-            }}
-            className="mt-1 w-full rounded-lg border border-border bg-bg px-3 py-2 text-white"
-          />
-        </label>
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-white">Percentuais por faixa</h3>
+          <p className="text-xs text-slate-500">
+            Três níveis de comissão. Os números abaixo são sempre o valor em % sobre o pagamento
+            Premium (ex.: 5 = 5%).
+          </p>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <label className="block text-sm">
+              <span className="font-medium text-slate-300">Faixa inicial</span>
+              <span className="mt-0.5 block text-[11px] text-slate-500">% nas primeiras indicações</span>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={form.percentTier1}
+                onChange={(e) => {
+                  setDirty(true)
+                  setForm((f) => ({ ...f, percentTier1: Number(e.target.value) }))
+                }}
+                className="mt-2 w-full rounded-lg border border-border bg-bg px-3 py-2 text-white"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="font-medium text-slate-300">Faixa intermédia</span>
+              <span className="mt-0.5 block text-[11px] text-slate-500">% no meio do percurso</span>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={form.percentTier2}
+                onChange={(e) => {
+                  setDirty(true)
+                  setForm((f) => ({ ...f, percentTier2: Number(e.target.value) }))
+                }}
+                className="mt-2 w-full rounded-lg border border-border bg-bg px-3 py-2 text-white"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="font-medium text-slate-300">Faixa máxima</span>
+              <span className="mt-0.5 block text-[11px] text-slate-500">% nas indicações mais maduras</span>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={form.percentTier3}
+                onChange={(e) => {
+                  setDirty(true)
+                  setForm((f) => ({ ...f, percentTier3: Number(e.target.value) }))
+                }}
+                className="mt-2 w-full rounded-lg border border-border bg-bg px-3 py-2 text-white"
+              />
+            </label>
+          </div>
+        </div>
 
-        <label className="block text-sm sm:col-span-2">
-          <span className="text-slate-400">
-            Máx. comissões por indicador / mês (0 = ilimitado — reservado)
-          </span>
-          <input
-            type="number"
-            min={0}
-            max={500}
-            value={form.maxRewardsPerReferrerPerMonth}
-            onChange={(e) => {
-              setDirty(true)
-              setForm((f) => ({ ...f, maxRewardsPerReferrerPerMonth: Number(e.target.value) }))
-            }}
-            className="mt-1 w-full max-w-xs rounded-lg border border-border bg-bg px-3 py-2 text-white"
-          />
-        </label>
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold text-white">Onde mudam as faixas</h3>
+          <p className="text-xs text-slate-500">
+            Aqui defines só o <strong className="font-medium text-slate-400">número da indicação paga</strong>{' '}
+            em que o % sobe. Ex.: 20 e 50 = igual ao modelo “até 19 / 20–49 / 50+”.
+          </p>
+          <label className="block max-w-md text-sm">
+            <span className="font-medium text-slate-300">
+              A partir de qual indicação paga vale a faixa intermédia?
+            </span>
+            <span className="mt-0.5 block text-[11px] leading-snug text-slate-500">
+              Ex.: 20 → da 20.ª indicação paga em diante usa o % “Faixa intermédia”, até ao limite
+              seguinte.
+            </span>
+            <input
+              type="number"
+              min={2}
+              max={500}
+              value={form.tier2MinNth}
+              onChange={(e) => {
+                setDirty(true)
+                setForm((f) => ({ ...f, tier2MinNth: Number(e.target.value) }))
+              }}
+              className="mt-2 w-full rounded-lg border border-border bg-bg px-3 py-2 text-white"
+            />
+          </label>
+          <label className="block max-w-md text-sm">
+            <span className="font-medium text-slate-300">
+              A partir de qual indicação paga vale a faixa máxima?
+            </span>
+            <span className="mt-0.5 block text-[11px] leading-snug text-slate-500">
+              Tem de ser maior que o campo anterior. Ex.: 50 → da 50.ª indicação paga em diante usa
+              o % “Faixa máxima”.
+            </span>
+            <input
+              type="number"
+              min={3}
+              max={10000}
+              value={form.tier3MinNth}
+              onChange={(e) => {
+                setDirty(true)
+                setForm((f) => ({ ...f, tier3MinNth: Number(e.target.value) }))
+              }}
+              className="mt-2 w-full rounded-lg border border-border bg-bg px-3 py-2 text-white"
+            />
+          </label>
+        </div>
+
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-white">Limite mensal (opcional)</h3>
+          <label className="block max-w-md text-sm">
+            <span className="text-slate-400">
+              Máximo de comissões contabilizadas por indicador, por mês civil
+            </span>
+            <span className="mt-0.5 block text-[11px] text-slate-600">
+              0 = sem limite (comportamento reservado para uma próxima versão do motor de pagamentos).
+            </span>
+            <input
+              type="number"
+              min={0}
+              max={500}
+              value={form.maxRewardsPerReferrerPerMonth}
+              onChange={(e) => {
+                setDirty(true)
+                setForm((f) => ({ ...f, maxRewardsPerReferrerPerMonth: Number(e.target.value) }))
+              }}
+              className="mt-2 w-full rounded-lg border border-border bg-bg px-3 py-2 text-white"
+            />
+          </label>
+        </div>
       </div>
 
-      <div className="mt-6 flex flex-wrap items-center gap-3">
+      <div className="mt-8 flex flex-wrap items-center gap-3 border-t border-border pt-6">
         <button
           type="button"
           disabled={saving || !dirty}
